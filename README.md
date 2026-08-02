@@ -16,6 +16,11 @@ navigateur.
 
 **Linux / macOS** — `./start.sh`
 
+> Si la fenêtre se ferme aussitôt, ou que rien ne semble se passer, ouvrez une
+> invite de commandes dans le dossier (barre d'adresse de l'explorateur → tapez
+> `cmd` → Entrée) et lancez `start.bat` depuis là : les messages d'erreur
+> resteront affichés. Voir aussi *Si ça ne démarre pas* plus bas.
+
 Ensuite, ouvrez la roue dentée (en haut à droite) → **Dossiers**, et indiquez le
 chemin complet de votre dossier de photos, par exemple `C:\Users\moi\Images`.
 Le scan démarre tout seul.
@@ -163,6 +168,30 @@ Ajoutez ce dossier dans les réglages pour voir l'application remplie.
 npm run dev        # serveur + interface avec rechargement à chaud
 npm run typecheck  # vérification TypeScript des deux côtés
 ```
+
+## Si ça ne démarre pas
+
+Ouvrez une invite de commandes dans le dossier du projet et lancez les étapes
+une par une — chacune affiche son erreur :
+
+```
+node -v          rem doit repondre v20 ou plus ; sinon installez Node LTS
+npm install
+npm run build
+npm start
+```
+
+* **`node` n'est pas reconnu** — Node.js n'est pas installé, ou pas dans le
+  PATH. Installez la version **LTS** depuis <https://nodejs.org>, puis rouvrez
+  une nouvelle invite de commandes (l'ancienne garde l'ancien PATH).
+* **Le port 7777 est déjà pris** — lancez avec un autre port :
+  `set PHOTON_PORT=7788 && npm start`
+* **La fenêtre se ferme instantanément** — c'est le symptôme d'un `start.bat`
+  dont les fins de ligne ont été converties en LF. Le dépôt force le CRLF via
+  `.gitattributes` ; si vous avez édité le fichier, réenregistrez-le en CRLF.
+* **Le pare-feu Windows demande une autorisation au premier lancement** —
+  acceptez pour le réseau privé, sinon les autres appareils du Wi-Fi ne
+  pourront pas se connecter.
 
 ## Limites connues
 

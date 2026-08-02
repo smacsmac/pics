@@ -1,0 +1,7 @@
+# Les scripts batch cassent si Windows les reçoit en LF : cmd.exe les lit de
+# travers et la fenêtre se ferme sans rien afficher.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Les scripts shell doivent rester en LF, y compris sur une machine Windows.
+*.sh text eol=lf
