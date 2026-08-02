@@ -8,7 +8,7 @@ import {
 } from './components/Overlays';
 import { SearchPanel, SettingsPanel, displayMonth } from './components/Panels';
 import { DateScrubber, Timeline } from './components/Timeline';
-import { TOP, TOP_COUNT, TopBar } from './components/TopBar';
+import { TOP, TopBar, settingsIndex, topCount } from './components/TopBar';
 import { Viewer } from './components/Viewer';
 import { api } from './lib/api';
 import { groupByDay, useHistogram, useMediaFeed } from './lib/feed';
@@ -46,6 +46,7 @@ export function App(): React.JSX.Element {
   const [cols, setCols] = useState(6);
   const [albumCols, setAlbumCols] = useState(4);
   const [recentOffset, setRecentOffset] = useState(0);
+  const [recentSlots, setRecentSlots] = useState(2);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [viewerPlaying, setViewerPlaying] = useState(false);
   const [viewerInfo, setViewerInfo] = useState(false);
@@ -53,6 +54,12 @@ export function App(): React.JSX.Element {
   const [backdrop, setBackdrop] = useState<string | null>(null);
   const [pad, setPad] = useState<PadStatus>({ connected: false, id: null });
   const [draft, setDraft] = useState<AlbumDraft>({ name: '', color: 285, musicSlot: null, tags: [] });
+
+  // Nombre de tuiles d'albums récents réellement à l'écran : ce que la largeur
+  // permet, borné par ce qui reste à afficher. Il décale l'index de la roue
+  // dentée, donc toute la navigation de la barre du haut en dépend.
+  const recentVisible = Math.max(0, Math.min(recentSlots, recentAlbums.length - recentOffset));
+  const gearIndex = settingsIndex(recentVisible);
 
   const currentAlbum: Album | undefined =
     view.kind === 'album' ? albums.find((a) => a.id === view.id)
@@ -218,16 +225,17 @@ export function App(): React.JSX.Element {
           if (isAdmin) openView({ kind: 'newAlbum' });
           else toast(t.adminOnly);
           break;
-        case TOP.SETTINGS:
-          setNav((n) => ({ ...n, zone: 'right', topIndex: TOP.SETTINGS, panelIndex: 0, subIndex: 0 }));
-          break;
         default: {
-          const album = recentAlbums[recentOffset + (index - TOP.RECENT_A)];
+          if (index === gearIndex) {
+            setNav((n) => ({ ...n, zone: 'right', topIndex: gearIndex, panelIndex: 0, subIndex: 0 }));
+            break;
+          }
+          const album = recentAlbums[recentOffset + (index - TOP.RECENT_START)];
           if (album) openView({ kind: 'album', id: album.id });
         }
       }
     },
-    [setNav, openView, favoritesAlbum, isAdmin, recentAlbums, recentOffset, t.adminOnly, toast],
+    [setNav, openView, favoritesAlbum, isAdmin, recentAlbums, recentOffset, gearIndex, t.adminOnly, toast],
   );
 
   const submitAlbum = useCallback(async () => {
@@ -425,24 +433,24 @@ export function App(): React.JSX.Element {
             setNav((n) => ({ ...n, topIndex: Math.max(0, n.topIndex - 1) }));
             break;
           case 'right':
-            setNav((n) => ({ ...n, topIndex: Math.min(TOP_COUNT - 1, n.topIndex + 1) }));
+            setNav((n) => ({ ...n, topIndex: Math.min(topCount(recentVisible) - 1, n.topIndex + 1) }));
             break;
           case 'down':
             if (nav.topIndex === TOP.SEARCH) setNav((n) => ({ ...n, zone: 'left', panelIndex: 0, subIndex: 0 }));
-            else if (nav.topIndex === TOP.SETTINGS) setNav((n) => ({ ...n, zone: 'right', panelIndex: 0, subIndex: 0 }));
+            else if (nav.topIndex === gearIndex) setNav((n) => ({ ...n, zone: 'right', panelIndex: 0, subIndex: 0 }));
             else setNav((n) => ({ ...n, zone: 'content' }));
             break;
           case 'confirm':
             activateTop(nav.topIndex);
             break;
           case 'dec':
-            if (nav.topIndex >= TOP.RECENT_A && nav.topIndex <= TOP.RECENT_B) {
+            if (nav.topIndex >= TOP.RECENT_START && nav.topIndex < gearIndex) {
               setRecentOffset((o) => Math.max(0, o - 1));
             }
             break;
           case 'inc':
-            if (nav.topIndex >= TOP.RECENT_A && nav.topIndex <= TOP.RECENT_B) {
-              setRecentOffset((o) => Math.min(Math.max(0, recentAlbums.length - 2), o + 1));
+            if (nav.topIndex >= TOP.RECENT_START && nav.topIndex < gearIndex) {
+              setRecentOffset((o) => Math.min(Math.max(0, recentAlbums.length - recentVisible), o + 1));
             }
             break;
           case 'back':
@@ -464,7 +472,7 @@ export function App(): React.JSX.Element {
               setNav((n) => ({
                 ...n,
                 zone: 'top',
-                topIndex: n.zone === 'left' ? TOP.SEARCH : TOP.SETTINGS,
+                topIndex: n.zone === 'left' ? TOP.SEARCH : gearIndex,
               }));
             } else {
               setNav((n) => ({ ...n, panelIndex: n.panelIndex - 1, subIndex: 0 }));
@@ -633,7 +641,8 @@ export function App(): React.JSX.Element {
     },
     [
       sheet, store.osk, store.addToAlbumFor, store.tagEditorFor, menu, viewerIndex, feed, nav,
-      isAdmin, selectMode, setSelectMode, setNav, activateTop, recentAlbums.length, bumpLeftRow,
+      isAdmin, selectMode, setSelectMode, setNav, activateTop, recentAlbums.length,
+      recentVisible, gearIndex, bumpLeftRow,
       bumpRightRow, confirmLeftRow, confirmRightRow, isMediaView, sections, cols, focusedItem,
       toggleSelection, openViewer, doAddToAlbum, doRemoveOrHide, view, albums, albumCols, openView,
       isForm, draft, setOsk, submitAlbum, settings.thumbSize, patchSettings, back, t, toast,
@@ -666,7 +675,7 @@ export function App(): React.JSX.Element {
   // ------------------------------------------------------------- affichage
 
   const showLeft = nav.zone === 'left' || (nav.zone === 'top' && nav.topIndex === TOP.SEARCH);
-  const showRight = nav.zone === 'right' || (nav.zone === 'top' && nav.topIndex === TOP.SETTINGS);
+  const showRight = nav.zone === 'right' || (nav.zone === 'top' && nav.topIndex === gearIndex);
   const viewerItem = viewerIndex !== null ? feed.items[viewerIndex] : undefined;
   const menuItem = menu ? feed.items.find((i) => i.id === menu.mediaId) : undefined;
 
@@ -692,6 +701,8 @@ export function App(): React.JSX.Element {
       <TopBar
         recentAlbums={recentAlbums}
         recentOffset={recentOffset}
+        recentVisible={recentVisible}
+        onSlotsMeasured={setRecentSlots}
         onActivate={(index) => {
           setNav((n) => ({ ...n, zone: 'top', topIndex: index }));
           activateTop(index);

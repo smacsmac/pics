@@ -98,11 +98,15 @@ input { background: none; border: none; outline: none; }
   flex: 0 0 auto;
 }
 
+/* Les boutons se partagent toute la largeur. Ils grandissent jusqu'à leur
+   max-width ; ce qui reste va aux albums récents, qui affichent alors plus de
+   tuiles. Sur un écran étroit, l'inverse : les récents rétrécissent d'abord. */
 .topbtn {
   position: relative;
-  width: 58px;
-  height: 54px;
-  flex: 0 0 auto;
+  flex: 1 1 0;
+  min-width: 52px;
+  max-width: 124px;
+  height: 62px;
   display: grid;
   place-items: center;
   border-radius: var(--radius);
@@ -113,7 +117,7 @@ input { background: none; border: none; outline: none; }
     background 0.16s;
 }
 
-.topbtn svg { width: 24px; height: 24px; }
+.topbtn svg { width: 26px; height: 26px; }
 
 .topbtn:hover { color: var(--text); border-color: var(--accent-deep); }
 
@@ -152,10 +156,9 @@ input { background: none; border: none; outline: none; }
 }
 
 .recent-chip {
-  height: 54px;
-  padding: 0 16px;
-  min-width: 108px;
-  max-width: 190px;
+  height: 62px;
+  padding: 0 14px;
+  min-width: 0;
   border-radius: var(--radius);
   background: var(--surface);
   border: 1px solid var(--line);
@@ -183,16 +186,6 @@ input { background: none; border: none; outline: none; }
   transform: translateY(-1px);
 }
 
-.topbar-spacer { flex: 1; min-width: 0; }
-
-.brand {
-  font-weight: 600;
-  letter-spacing: 0.22em;
-  font-size: 0.74em;
-  color: var(--muted);
-  padding-right: 4px;
-  text-transform: uppercase;
-}
 
 /* -------------------------------------------------------------- panneaux */
 
@@ -536,6 +529,9 @@ input { background: none; border: none; outline: none; }
 .act.a { bottom: 0; left: 50%; transform: translateX(-50%); }
 .act.a:hover { transform: translateX(-50%) scale(1.16); }
 
+/* Les lettres Y/X/A débordent de leur bouton vers le centre de la tuile. Sans
+   pointer-events: none, elles interceptent le clic destiné à la photo : cliquer
+   au milieu d'une photo déclenchait « ajouter à un album » au lieu de l'ouvrir. */
 .act-key {
   position: absolute;
   bottom: -13px;
@@ -544,6 +540,7 @@ input { background: none; border: none; outline: none; }
   font-size: 0.56em;
   color: var(--muted);
   letter-spacing: 0.06em;
+  pointer-events: none;
 }
 
 .dur {
@@ -764,7 +761,12 @@ input { background: none; border: none; outline: none; }
   inset: 0;
   z-index: 60;
   background: #000;
+  /* Pistes explicites en minmax(0, 1fr) : sans elles, la piste implicite se
+     dimensionne sur l'image, et le max-height: 100% de la photo se mesure
+     contre elle-même — une photo de 4000 px déborde alors de l'écran. */
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   place-items: center;
   animation: fade 0.16s ease;
 }
@@ -779,6 +781,11 @@ input { background: none; border: none; outline: none; }
   object-fit: contain;
   display: block;
 }
+
+/* Ceinture et bretelles : même si un navigateur résout mal les pourcentages
+   ci-dessus, la photo ne peut pas dépasser la fenêtre. */
+.viewer img { max-width: 100vw; max-height: 100vh; }
+.viewer video { max-width: 100vw; max-height: 100vh; }
 
 .viewer-hint {
   position: absolute;

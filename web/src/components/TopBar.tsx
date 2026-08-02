@@ -1,33 +1,68 @@
+import { useEffect, useRef } from 'react';
 import type { Album } from '../../../shared/types';
 import { useStore } from '../lib/store';
 import {
   IconAlbum, IconGear, IconHeart, IconPlus, IconSearch, IconVideo,
 } from './Icons';
 
-/** Positions fixes dans la barre du haut ; le reste du code s'y réfère par nom. */
+/**
+ * Positions dans la barre du haut. Les cinq premières sont fixes ; les tuiles
+ * d'albums récents occupent ensuite autant de places qu'il y a d'espace, et
+ * « paramètres » ferme la marche — d'où un index calculé plutôt que constant.
+ */
 export const TOP = {
   SEARCH: 0,
   ALBUMS: 1,
   FAVORITES: 2,
   VIDEOS: 3,
   NEW_ALBUM: 4,
-  RECENT_A: 5,
-  RECENT_B: 6,
-  SETTINGS: 7,
+  RECENT_START: 5,
 } as const;
 
-export const TOP_COUNT = 8;
+export function settingsIndex(recentVisible: number): number {
+  return TOP.RECENT_START + recentVisible;
+}
+
+export function topCount(recentVisible: number): number {
+  return settingsIndex(recentVisible) + 1;
+}
+
+/** Largeur minimale confortable pour une tuile d'album récent, gouttière comprise. */
+const CHIP_WIDTH = 172;
+const MAX_RECENT_SLOTS = 8;
 
 interface Props {
   recentAlbums: Album[];
   recentOffset: number;
+  /** Nombre de tuiles réellement affichées, décidé par la mesure ci-dessous. */
+  recentVisible: number;
+  onSlotsMeasured: (slots: number) => void;
   onActivate: (index: number) => void;
   onHover: (index: number) => void;
 }
 
-export function TopBar({ recentAlbums, recentOffset, onActivate, onHover }: Props): React.JSX.Element {
+export function TopBar({
+  recentAlbums, recentOffset, recentVisible, onSlotsMeasured, onActivate, onHover,
+}: Props): React.JSX.Element {
   const { nav, view, t } = useStore();
+  const recentsRef = useRef<HTMLDivElement | null>(null);
   const focused = nav.zone === 'top' ? nav.topIndex : -1;
+  const gear = settingsIndex(recentVisible);
+
+  // La zone des récents est dimensionnée par flexbox, indépendamment de son
+  // contenu : on peut donc en déduire le nombre de tuiles sans boucle infinie.
+  useEffect(() => {
+    const el = recentsRef.current;
+    if (!el) return;
+    const measure = (): void => {
+      const slots = Math.floor((el.clientWidth + 10) / CHIP_WIDTH);
+      onSlotsMeasured(Math.max(1, Math.min(MAX_RECENT_SLOTS, slots)));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [onSlotsMeasured]);
 
   const isActiveView = (index: number): boolean => {
     switch (index) {
@@ -55,7 +90,10 @@ export function TopBar({ recentAlbums, recentOffset, onActivate, onHover }: Prop
     </button>
   );
 
-  const visibleRecents = recentAlbums.slice(recentOffset, recentOffset + 2);
+  const shown = recentAlbums.slice(recentOffset, recentOffset + recentVisible);
+  // Quand il n'y a pas assez d'albums pour remplir, on laisse la place aux
+  // boutons plutôt que d'étirer une tuile solitaire sur la moitié de l'écran.
+  const filled = shown.length >= recentVisible && recentVisible > 0;
 
   return (
     <div className="topbar">
@@ -65,30 +103,33 @@ export function TopBar({ recentAlbums, recentOffset, onActivate, onHover }: Prop
       {button(TOP.VIDEOS, t.videos, IconVideo)}
       {button(TOP.NEW_ALBUM, t.newAlbum, IconPlus)}
 
-      <div className="recents">
-        {[TOP.RECENT_A, TOP.RECENT_B].map((slot, i) => {
-          const album = visibleRecents[i];
-          if (!album) return null;
-          const focusedHere = focused === slot;
+      <div
+        className="recents"
+        ref={recentsRef}
+        style={{ flex: shown.length === 0 ? '1 1 0' : filled ? '6 1 0' : '0 1 auto' }}
+      >
+        {shown.map((album, i) => {
+          const slot = TOP.RECENT_START + i;
           return (
             <button
-              key={slot}
-              className={`recent-chip${focusedHere ? ' on' : ''}`}
-              style={{ ['--chip-hue' as string]: String(album.color) }}
+              key={album.id}
+              className={`recent-chip${focused === slot ? ' on' : ''}`}
+              style={{
+                ['--chip-hue' as string]: String(album.color),
+                flex: filled ? '1 1 0' : '0 0 190px',
+              }}
               onClick={() => onActivate(slot)}
               onMouseEnter={() => onHover(slot)}
               title={album.name}
             >
-              <span className="n">{album.kind === 'favorites' ? t.favorites : album.name}</span>
+              <span className="n">{album.name}</span>
               <span className="c">{t.photoCount(album.count)}</span>
             </button>
           );
         })}
       </div>
 
-      <div className="topbar-spacer" />
-      <span className="brand">Photon</span>
-      {button(TOP.SETTINGS, t.settings, IconGear)}
+      {button(gear, t.settings, IconGear)}
     </div>
   );
 }
