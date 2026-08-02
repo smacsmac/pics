@@ -91,11 +91,18 @@ liseré néon des photos et les boutons prennent sa teinte.
 
 ## Musique
 
-Dans **Paramètres → Dossiers**, ajoutez un dossier de type *musique* contenant
-`1.mp3`, `2.mp3`, … `5.mp3`. Chaque album peut alors pointer vers l'un des cinq
-emplacements ; la piste démarre en boucle à l'ouverture de l'album, au volume
-réglé dans les paramètres. (Le navigateur exige une première interaction avant
-d'autoriser le son — un clic suffit.)
+Deux étapes, et c'est la seconde qu'on oublie :
+
+1. **Le dossier**, une fois pour toutes — Paramètres → Dossiers → type
+   *musique*, contenant `1.mp3`, `2.mp3`, … `5.mp3`.
+2. **La piste, album par album** — ouvrez l'album → **Modifier l'album** (le
+   crayon) → ligne *musique* → choisissez un numéro. C'est ici que ça se règle,
+   pas dans les paramètres.
+
+La piste démarre alors en boucle à l'ouverture de l'album, au volume réglé dans
+les paramètres (volume à 0 = muet). Si le navigateur refuse le son parce que la
+page n'a encore reçu aucune interaction, Photon le signale et relance la lecture
+au premier clic ou à la première touche.
 
 ## Tags
 

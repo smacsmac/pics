@@ -15,7 +15,7 @@ import { groupByDay, useHistogram, useMediaFeed } from './lib/feed';
 import { buildCells, moveFocus, TILE_WIDTHS, type Direction } from './lib/grid';
 import { LANGS } from './lib/i18n';
 import { onPadStatus, startInput, useInput, type Action, type PadStatus } from './lib/input';
-import { FONT_STEPS, HUES, LEFT_ROWS, VOLUME_STEPS, rightRows } from './lib/panels';
+import { FONT_MAX, HUES, LEFT_ROWS, VOLUME_MAX, rightRows } from './lib/panels';
 import { useStore } from './lib/store';
 
 export function App(): React.JSX.Element {
@@ -303,10 +303,10 @@ export function App(): React.JSX.Element {
 
       switch (row.id) {
         case 'font':
-          patchSettings({ fontScale: clamp(settings.fontScale + delta, FONT_STEPS - 1) });
+          patchSettings({ fontScale: clamp(settings.fontScale + delta, FONT_MAX) });
           break;
         case 'volume':
-          patchSettings({ volume: clamp(settings.volume + delta, VOLUME_STEPS - 1) });
+          patchSettings({ volume: clamp(settings.volume + delta, VOLUME_MAX) });
           break;
         case 'theme': {
           const index = HUES.indexOf(settings.hue);

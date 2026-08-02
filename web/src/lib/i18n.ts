@@ -102,6 +102,9 @@ const en = {
   photoCount: (n: number) => `${n} photo${n === 1 ? '' : 's'}`,
   videoCount: (n: number) => `${n} video${n === 1 ? '' : 's'}`,
   play: 'Press A to play',
+  musicBlocked: 'Click once on the page to allow sound',
+  musicNoFolder: 'No music folder yet — Settings → Folders',
+  musicHint: 'Name the files 1.mp3 … 5.mp3, then pick a track in each album (Edit album → music).',
 
   controls: 'Controls',
   today: 'Today',
@@ -199,6 +202,9 @@ const fr: Dict = {
   photoCount: (n: number) => `${n} photo${n > 1 ? 's' : ''}`,
   videoCount: (n: number) => `${n} vidéo${n > 1 ? 's' : ''}`,
   play: 'Appuyez sur A pour lire',
+  musicBlocked: 'Cliquez une fois dans la page pour autoriser le son',
+  musicNoFolder: 'Aucun dossier de musique — Paramètres → Dossiers',
+  musicHint: 'Nommez les fichiers 1.mp3 … 5.mp3, puis choisissez la piste dans chaque album (Modifier l’album → musique).',
 
   controls: 'Contrôles',
   today: 'Aujourd’hui',
@@ -294,6 +300,9 @@ const ko: Dict = {
   photoCount: (n: number) => `사진 ${n}장`,
   videoCount: (n: number) => `동영상 ${n}개`,
   play: 'A를 눌러 재생',
+  musicBlocked: '소리를 허용하려면 페이지를 한 번 클릭하세요',
+  musicNoFolder: '음악 폴더가 없습니다 — 설정 → 폴더',
+  musicHint: '파일을 1.mp3 … 5.mp3 로 두고, 앨범마다 트랙을 고르세요 (앨범 편집 → 음악).',
 
   controls: '조작',
   today: '오늘',

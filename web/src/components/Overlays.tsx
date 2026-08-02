@@ -455,7 +455,7 @@ export function FoldersSheet(): React.JSX.Element | null {
             }}
           />
           {error && <div className="mini" style={{ color: '#ff9aad' }}>{error}</div>}
-          {kind === 'music' && <div className="mini">1.mp3 … 5.mp3</div>}
+          {kind === 'music' && <div className="mini">{t.musicHint}</div>}
         </div>
 
         <div className="form-actions">

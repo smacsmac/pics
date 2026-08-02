@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Album } from '../../../shared/types';
 import { api } from '../lib/api';
-import { HUES } from '../lib/panels';
+import { HUES, VOLUME_MAX } from '../lib/panels';
 import { useStore } from '../lib/store';
 import { IconAlbum, IconPencil, IconTrash, IconX } from './Icons';
 
@@ -158,6 +158,7 @@ export function AlbumForm({
             </button>
           ))}
         </div>
+        {slots.length === 0 && <span className="mini">{t.musicNoFolder}</span>}
       </div>
 
       <div className={`field${field === 'tags' ? ' on' : ''}`}>
@@ -234,8 +235,9 @@ export function AlbumForm({
 
 /** Joue la piste d'un album, au volume global (0 = muet). */
 export function AlbumMusic({ slot }: { slot: number | null }): null {
-  const { settings } = useStore();
+  const { settings, t, toast } = useStore();
   const [audio] = useState(() => (typeof Audio === 'undefined' ? null : new Audio()));
+  const warned = useRef(false);
 
   useEffect(() => {
     if (!audio) return;
@@ -254,11 +256,23 @@ export function AlbumMusic({ slot }: { slot: number | null }): null {
     }
     const url = api.musicUrl(slot);
     if (!audio.src.endsWith(url)) audio.src = url;
-    audio.volume = settings.volume / 5;
-    // Les navigateurs bloquent la lecture tant qu'aucune interaction n'a eu
-    // lieu : la promesse rejetée n'est pas une erreur à remonter.
-    void audio.play().catch(() => {});
-  }, [audio, slot, settings.volume]);
+    audio.volume = Math.min(1, Math.max(0, settings.volume / VOLUME_MAX));
+
+    void audio.play().catch(() => {
+      // Le navigateur refuse de jouer tant que la page n'a reçu aucune
+      // interaction. Plutôt qu'un silence inexpliqué, on le dit une fois et on
+      // repart au premier geste — clic, touche ou bouton de manette.
+      if (!warned.current) {
+        warned.current = true;
+        toast(t.musicBlocked);
+      }
+      const resume = (): void => {
+        void audio.play().catch(() => {});
+      };
+      window.addEventListener('pointerdown', resume, { once: true });
+      window.addEventListener('keydown', resume, { once: true });
+    });
+  }, [audio, slot, settings.volume, t.musicBlocked, toast]);
 
   return null;
 }

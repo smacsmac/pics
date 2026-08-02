@@ -1,6 +1,6 @@
 import type { MonthValue } from '../lib/store';
 import { LANGS, monthNames } from '../lib/i18n';
-import { FONT_STEPS, HUES, LEFT_ROWS, VOLUME_STEPS, rightRows } from '../lib/panels';
+import { FONT_BOXES, HUES, LEFT_ROWS, VOLUME_BOXES, rightRows } from '../lib/panels';
 import { useStore } from '../lib/store';
 import { IconEye, IconFolder, IconFont, IconGlobe, IconKey, IconPalette, IconVolume } from './Icons';
 
@@ -99,10 +99,11 @@ export function SettingsPanel(): React.JSX.Element {
   const rows = rightRows(isAdmin);
   const rowAt = (id: string): boolean => active && rows[nav.panelIndex]?.id === id;
 
-  const steps = (count: number, filled: number): React.JSX.Element => (
+  /** `filled` compte les cases allumées, pas un index : 0 en allume aucune. */
+  const steps = (boxes: number, filled: number): React.JSX.Element => (
     <div className="steps">
-      {Array.from({ length: count }, (_, i) => (
-        <span key={i} className={`step${i <= filled ? ' filled' : ''}`} />
+      {Array.from({ length: boxes }, (_, i) => (
+        <span key={i} className={`step${i < filled ? ' filled' : ''}`} />
       ))}
     </div>
   );
@@ -116,7 +117,7 @@ export function SettingsPanel(): React.JSX.Element {
           <IconFont className="ic" />
           <span className="lab">{t.fontSize}</span>
         </div>
-        {steps(FONT_STEPS, settings.fontScale)}
+        {steps(FONT_BOXES, settings.fontScale + 1)}
       </div>
 
       <div className={`panel-row${rowAt('volume') ? ' on' : ''}`}>
@@ -124,7 +125,7 @@ export function SettingsPanel(): React.JSX.Element {
           <IconVolume className="ic" />
           <span className="lab">{t.volume}</span>
         </div>
-        {steps(VOLUME_STEPS, settings.volume - 1)}
+        {steps(VOLUME_BOXES, settings.volume)}
       </div>
 
       <div className={`panel-row${rowAt('theme') ? ' on' : ''}`}>

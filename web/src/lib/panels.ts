@@ -34,5 +34,12 @@ export function rightRows(isAdmin: boolean): PanelRow[] {
 /** Les teintes proposées pour le thème : un arc-en-ciel néon. */
 export const HUES = [285, 320, 350, 20, 45, 80, 150, 190, 220, 250];
 
-export const FONT_STEPS = 5;
-export const VOLUME_STEPS = 6;
+/**
+ * Valeurs maximales des réglages, et nombre de cases dessinées pour chacun.
+ * Les deux étaient confondus : le volume allait de 0 à 5 pour six cases, donc
+ * la dernière ne s'allumait jamais, même à fond.
+ */
+export const FONT_MAX = 4; // fontScale 0..4
+export const VOLUME_MAX = 5; // volume 0..5, 0 = muet
+export const FONT_BOXES = 5;
+export const VOLUME_BOXES = 5;
