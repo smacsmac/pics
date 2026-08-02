@@ -33,6 +33,13 @@ function parseNum(value: unknown): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+/** Un pourcentage saisi à la main : on borne plutôt que de rejeter. */
+function clampPercent(value: unknown, fallback: number): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(100, Math.max(0, Math.round(n)));
+}
+
 function filtersFrom(query: Record<string, unknown>, admin: boolean): Filters {
   const showHidden = getSettings().showHidden;
   return {
@@ -51,6 +58,7 @@ function albumRows(): Album[] {
   const rows = db
     .prepare(
       `SELECT a.id, a.name, a.color, a.music_slot AS musicSlot, a.kind,
+              a.video_music_pct AS videoMusicPct,
               a.created_at AS createdAt, a.updated_at AS updatedAt,
               -- Sans couverture choisie, on prend la photo la plus récente de l'album.
               COALESCE(a.cover_media_id, (
@@ -271,17 +279,27 @@ export function registerRoutes(app: FastifyInstance): void {
 
   app.post('/api/albums', async (req, reply) => {
     if (!requireAdmin(req, reply)) return;
-    const body = req.body as { name?: string; color?: number; musicSlot?: number | null; tags?: string[] };
+    const body = req.body as {
+      name?: string; color?: number; musicSlot?: number | null;
+      videoMusicPct?: number; tags?: string[];
+    };
     const name = (body.name ?? '').trim();
     if (!name) return reply.code(400).send({ error: 'name_required' });
 
     const now = Date.now();
     const info = db
       .prepare(
-        `INSERT INTO albums (name, color, music_slot, kind, created_at, updated_at)
-         VALUES (?, ?, ?, 'user', ?, ?)`,
+        `INSERT INTO albums (name, color, music_slot, video_music_pct, kind, created_at, updated_at)
+         VALUES (?, ?, ?, ?, 'user', ?, ?)`,
       )
-      .run(name, Math.round(body.color ?? getSettings().hue), body.musicSlot ?? null, now, now);
+      .run(
+        name,
+        Math.round(body.color ?? getSettings().hue),
+        body.musicSlot ?? null,
+        clampPercent(body.videoMusicPct, 20),
+        now,
+        now,
+      );
     const id = Number(info.lastInsertRowid);
 
     for (const tag of body.tags ?? []) {
@@ -296,7 +314,7 @@ export function registerRoutes(app: FastifyInstance): void {
     if (!requireAdmin(req, reply)) return;
     const id = Number((req.params as { id: string }).id);
     const body = req.body as {
-      name?: string; color?: number; musicSlot?: number | null;
+      name?: string; color?: number; musicSlot?: number | null; videoMusicPct?: number;
       coverMediaId?: number | null; tags?: string[];
     };
     const album = db.prepare(`SELECT id, kind FROM albums WHERE id = ?`).get(id) as
@@ -318,6 +336,10 @@ export function registerRoutes(app: FastifyInstance): void {
     if (body.musicSlot !== undefined) {
       sets.push('music_slot = ?');
       params.push(body.musicSlot);
+    }
+    if (body.videoMusicPct !== undefined) {
+      sets.push('video_music_pct = ?');
+      params.push(clampPercent(body.videoMusicPct, 20));
     }
     if (body.coverMediaId !== undefined) {
       sets.push('cover_media_id = ?');

@@ -104,6 +104,12 @@ les paramètres (volume à 0 = muet). Si le navigateur refuse le son parce que l
 page n'a encore reçu aucune interaction, Photon le signale et relance la lecture
 au premier clic ou à la première touche.
 
+**Pendant une vidéo**, la musique baisse pour qu'on entende la bande son. Le
+niveau se règle par album, dans le même formulaire : *musique pendant les
+vidéos*, en pourcentage du volume global (20 % par défaut, 0 = silence total).
+L'atténuation démarre dès que la vidéo s'affiche en plein écran, avec un fondu
+d'un quart de seconde, et le volume remonte à la fermeture.
+
 ## Tags
 
 Les tags s'ajoutent à la main : clic droit sur une photo → **Modifier les

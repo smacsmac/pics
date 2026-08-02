@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Album, MediaItem } from '../../shared/types';
-import { AlbumForm, AlbumMusic, AlbumsGrid, ALBUM_FIELDS, type AlbumDraft } from './components/Albums';
+import {
+  AlbumForm, AlbumMusic, AlbumsGrid, ALBUM_FIELDS, clampPercent, type AlbumDraft,
+} from './components/Albums';
 import { IconGamepad, IconPencil, IconSelect, IconX } from './components/Icons';
 import {
   AddToAlbumSheet, AdminSheet, ContextMenu, FoldersSheet, MonthPickerSheet, Osk,
@@ -53,7 +55,9 @@ export function App(): React.JSX.Element {
   const [menu, setMenu] = useState<MenuTarget | null>(null);
   const [backdrop, setBackdrop] = useState<string | null>(null);
   const [pad, setPad] = useState<PadStatus>({ connected: false, id: null });
-  const [draft, setDraft] = useState<AlbumDraft>({ name: '', color: 285, musicSlot: null, tags: [] });
+  const [draft, setDraft] = useState<AlbumDraft>({
+    name: '', color: 285, musicSlot: null, videoMusicPct: 20, tags: [],
+  });
 
   // Nombre de tuiles d'albums récents réellement à l'écran : ce que la largeur
   // permet, borné par ce qui reste à afficher. Il décale l'index de la roue
@@ -119,11 +123,12 @@ export function App(): React.JSX.Element {
         name: currentAlbum.name,
         color: currentAlbum.color,
         musicSlot: currentAlbum.musicSlot,
+        videoMusicPct: currentAlbum.videoMusicPct,
         tags: currentAlbum.tags,
       });
     }
     if (view.kind === 'newAlbum') {
-      setDraft({ name: '', color: settings.hue, musicSlot: null, tags: [] });
+      setDraft({ name: '', color: settings.hue, musicSlot: null, videoMusicPct: 20, tags: [] });
     }
   }, [view, currentAlbum, settings.hue]);
 
@@ -612,12 +617,25 @@ export function App(): React.JSX.Element {
               const index = options.indexOf(draft.musicSlot);
               const next = ((index + delta) % options.length + options.length) % options.length;
               setDraft((d) => ({ ...d, musicSlot: options[next] }));
+            } else if (field === 'videoMusic') {
+              // Par pas de 5 à la manette ; la saisie exacte passe par le clavier.
+              setDraft((d) => ({ ...d, videoMusicPct: clampPercent(d.videoMusicPct + delta * 5) }));
             }
             break;
           }
           case 'confirm':
             if (field === 'name') {
               setOsk({ label: t.name, value: draft.name, onCommit: (value) => setDraft((d) => ({ ...d, name: value })) });
+            } else if (field === 'videoMusic') {
+              setOsk({
+                label: t.videoMusic,
+                value: String(draft.videoMusicPct),
+                onCommit: (value) =>
+                  setDraft((d) => ({
+                    ...d,
+                    videoMusicPct: clampPercent(Number(value.replace(/\D/g, '') || 0)),
+                  })),
+              });
             } else if (field === 'tags') {
               setOsk({
                 label: t.addTag,
@@ -723,7 +741,7 @@ export function App(): React.JSX.Element {
                   {filtersActive && ` · ${t.filtered}`}
                 </span>
               )}
-              {currentAlbum && currentAlbum.kind !== 'favorites' && isAdmin && (
+              {currentAlbum && currentAlbum.kind !== 'favorites' && isAdmin && !isForm && (
                 <button
                   className="tiny-btn"
                   onClick={() => openView({ kind: 'editAlbum', id: currentAlbum.id })}
@@ -872,7 +890,14 @@ export function App(): React.JSX.Element {
         </span>
       </div>
 
-      {currentAlbum && <AlbumMusic slot={currentAlbum.musicSlot} />}
+      {currentAlbum && (
+        <AlbumMusic
+          slot={currentAlbum.musicSlot}
+          // Dès qu'une vidéo est à l'écran, y compris avant qu'on la lance :
+          // la musique ne saute pas de volume au moment où le son démarre.
+          duckPct={viewerItem?.kind === 'video' ? currentAlbum.videoMusicPct : null}
+        />
+      )}
 
       {viewerItem && (
         <Viewer

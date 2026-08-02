@@ -64,13 +64,15 @@ export const api = {
 
   albums: () => request<Album[]>('/api/albums'),
 
-  createAlbum: (body: { name: string; color: number; musicSlot: number | null; tags: string[] }) =>
-    request<Album>('/api/albums', { method: 'POST', body: JSON.stringify(body) }),
+  createAlbum: (body: {
+    name: string; color: number; musicSlot: number | null;
+    videoMusicPct: number; tags: string[];
+  }) => request<Album>('/api/albums', { method: 'POST', body: JSON.stringify(body) }),
 
   updateAlbum: (
     id: number,
     body: Partial<{
-      name: string; color: number; musicSlot: number | null;
+      name: string; color: number; musicSlot: number | null; videoMusicPct: number;
       coverMediaId: number | null; tags: string[];
     }>,
   ) => request<Album>(`/api/albums/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),

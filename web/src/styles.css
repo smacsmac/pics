@@ -670,6 +670,11 @@ input { background: none; border: none; outline: none; }
 .slot.on { background: var(--accent-soft); color: #08080c; border-color: var(--accent); font-weight: 600; }
 .slot.off { opacity: 0.42; }
 
+.pct { display: flex; align-items: center; gap: 8px; }
+.pct .text-input { width: 5.5ch; flex: 0 0 auto; text-align: center; }
+.pct .unit { color: var(--muted); font-size: 0.9em; }
+.pct .mini { flex: 1; min-width: 0; }
+
 .chip-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 
 .chip {

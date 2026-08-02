@@ -89,6 +89,20 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 `);
 
+/**
+ * Ajoute une colonne à une base déjà existante. SQLite n'a pas d'`ADD COLUMN
+ * IF NOT EXISTS`, et une bibliothèque déjà remplie ne doit pas être recréée.
+ */
+function addColumnIfMissing(table: string, column: string, definition: string): void {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  if (columns.some((c) => c.name === column)) return;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+
+// Volume de la musique d'album pendant la lecture d'une vidéo, en pourcentage
+// du volume global. 20 % laisse la musique présente sans couvrir la vidéo.
+addColumnIfMissing('albums', 'video_music_pct', 'INTEGER NOT NULL DEFAULT 20');
+
 /** L'album « favoris » est un album normal, simplement épinglé et non supprimable. */
 export function ensureFavoritesAlbum(): number {
   const existing = db.prepare(`SELECT id FROM albums WHERE kind = 'favorites'`).get() as

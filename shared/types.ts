@@ -26,6 +26,8 @@ export interface Album {
   name: string;
   color: number; // teinte 0-359
   musicSlot: number | null; // 1..5
+  /** Volume de la musique pendant une vidéo, en % du volume global (0-100). */
+  videoMusicPct: number;
   coverMediaId: number | null;
   kind: 'user' | 'favorites';
   count: number;

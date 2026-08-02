@@ -6,7 +6,7 @@ import { useStore } from '../lib/store';
 import { IconAlbum, IconPencil, IconTrash, IconX } from './Icons';
 
 /** Champs traversables d'un formulaire d'album (nav.contentIndex les indexe). */
-export const ALBUM_FIELDS = ['name', 'color', 'music', 'tags', 'submit'] as const;
+export const ALBUM_FIELDS = ['name', 'color', 'music', 'videoMusic', 'tags', 'submit'] as const;
 export type AlbumField = (typeof ALBUM_FIELDS)[number];
 
 export function AlbumsGrid({
@@ -72,7 +72,14 @@ export interface AlbumDraft {
   name: string;
   color: number;
   musicSlot: number | null;
+  /** Volume de la musique pendant une vidéo, en % du volume global. */
+  videoMusicPct: number;
   tags: string[];
+}
+
+export function clampPercent(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(100, Math.max(0, Math.round(value)));
 }
 
 /**
@@ -161,6 +168,26 @@ export function AlbumForm({
         {slots.length === 0 && <span className="mini">{t.musicNoFolder}</span>}
       </div>
 
+      <div className={`field${field === 'videoMusic' ? ' on' : ''}`}>
+        <span className="lab">{t.videoMusic}</span>
+        <div className="pct">
+          <input
+            className="text-input"
+            inputMode="numeric"
+            value={draft.videoMusicPct}
+            aria-label={t.videoMusic}
+            onChange={(e) => {
+              // On accepte la saisie brute (y compris vide) et on borne à la sortie.
+              const digits = e.target.value.replace(/\D/g, '').slice(0, 3);
+              setDraft((d) => ({ ...d, videoMusicPct: digits === '' ? 0 : clampPercent(Number(digits)) }));
+            }}
+            onFocus={(e) => e.target.select()}
+          />
+          <span className="unit">%</span>
+          <span className="mini">{t.videoMusicHint}</span>
+        </div>
+      </div>
+
       <div className={`field${field === 'tags' ? ' on' : ''}`}>
         <span className="lab">{t.tags}</span>
         <div className="chip-row">
@@ -233,11 +260,29 @@ export function AlbumForm({
   );
 }
 
-/** Joue la piste d'un album, au volume global (0 = muet). */
-export function AlbumMusic({ slot }: { slot: number | null }): null {
+/**
+ * Joue la piste d'un album, au volume global (0 = muet).
+ *
+ * `duckPct` non nul baisse la musique pendant qu'une vidéo est à l'écran, pour
+ * qu'on entende le son de la vidéo. La transition est fondue sur un quart de
+ * seconde : un saut de volume brutal s'entend plus que la musique elle-même.
+ */
+export function AlbumMusic({
+  slot,
+  duckPct,
+}: {
+  slot: number | null;
+  duckPct: number | null;
+}): null {
   const { settings, t, toast } = useStore();
   const [audio] = useState(() => (typeof Audio === 'undefined' ? null : new Audio()));
   const warned = useRef(false);
+  const ramp = useRef<number | null>(null);
+
+  const targetVolume = Math.min(
+    1,
+    Math.max(0, (settings.volume / VOLUME_MAX) * (duckPct === null ? 1 : duckPct / 100)),
+  );
 
   useEffect(() => {
     if (!audio) return;
@@ -250,13 +295,31 @@ export function AlbumMusic({ slot }: { slot: number | null }): null {
 
   useEffect(() => {
     if (!audio) return;
+    if (ramp.current !== null) cancelAnimationFrame(ramp.current);
+    const from = audio.volume;
+    const started = performance.now();
+    const DURATION = 260;
+    const step = (now: number): void => {
+      const k = Math.min(1, (now - started) / DURATION);
+      audio.volume = Math.min(1, Math.max(0, from + (targetVolume - from) * k));
+      ramp.current = k < 1 ? requestAnimationFrame(step) : null;
+    };
+    ramp.current = requestAnimationFrame(step);
+    return () => {
+      if (ramp.current !== null) cancelAnimationFrame(ramp.current);
+    };
+  }, [audio, targetVolume]);
+
+  useEffect(() => {
+    if (!audio) return;
+    // Volume global à zéro : on arrête vraiment. Une simple atténuation, elle,
+    // garde la lecture en cours pour ne pas perdre la position dans le morceau.
     if (slot === null || settings.volume === 0) {
       audio.pause();
       return;
     }
     const url = api.musicUrl(slot);
     if (!audio.src.endsWith(url)) audio.src = url;
-    audio.volume = Math.min(1, Math.max(0, settings.volume / VOLUME_MAX));
 
     void audio.play().catch(() => {
       // Le navigateur refuse de jouer tant que la page n'a reçu aucune
