@@ -1,0 +1,910 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import type { Root } from '../../../shared/types';
+import { api, ApiError } from '../lib/api';
+import { LANGS, monthNames } from '../lib/i18n';
+import { useInput } from '../lib/input';
+import { useStore } from '../lib/store';
+import {
+  IconCheck, IconExpand, IconHeart, IconHide, IconPencil, IconPlus, IconSelect, IconTag, IconTrash, IconX,
+} from './Icons';
+
+/** Enferme le curseur d'une liste dans ses bornes, avec bouclage. */
+function wrap(index: number, length: number): number {
+  if (length <= 0) return 0;
+  return ((index % length) + length) % length;
+}
+
+// ------------------------------------------------------------------ carrousels
+
+export function MonthPickerSheet(): React.JSX.Element | null {
+  const { sheet, setSheet, filters, setFilters, settings, state, t } = useStore();
+  const [cursor, setCursor] = useState(0);
+
+  const picker = sheet?.kind === 'monthPicker' ? sheet : null;
+  const bounds = state?.bounds ?? { min: null, max: null };
+
+  const options = useMemo<Array<{ value: number; label: string }>>(() => {
+    if (!picker) return [];
+    if (picker.field === 'month') {
+      return monthNames(settings.lang, 'long').map((label, value) => ({ value, label }));
+    }
+    const minYear = new Date(bounds.min ?? Date.now()).getFullYear();
+    const maxYear = new Date(bounds.max ?? Date.now()).getFullYear();
+    const years: Array<{ value: number; label: string }> = [];
+    for (let y = maxYear; y >= minYear; y--) years.push({ value: y, label: String(y) });
+    return years;
+  }, [picker, settings.lang, bounds.min, bounds.max]);
+
+  const current = picker ? (picker.which === 'from' ? filters.from : filters.to) : null;
+
+  useEffect(() => {
+    if (!picker) return;
+    const value = picker.field === 'month' ? current?.month : current?.year;
+    const found = options.findIndex((o) => o.value === value);
+    setCursor(found >= 0 ? found : 0);
+  }, [picker, options, current]);
+
+  const commit = useCallback(
+    (index: number) => {
+      if (!picker) return;
+      const option = options[index];
+      if (!option) return;
+      const fallback = new Date(picker.which === 'from' ? bounds.min ?? Date.now() : bounds.max ?? Date.now());
+      const base = current ?? { year: fallback.getFullYear(), month: fallback.getMonth() };
+      const next = picker.field === 'month'
+        ? { ...base, month: option.value }
+        : { ...base, year: option.value };
+      setFilters((f) => (picker.which === 'from' ? { ...f, from: next } : { ...f, to: next }));
+      setSheet(null);
+    },
+    [picker, options, current, bounds.min, bounds.max, setFilters, setSheet],
+  );
+
+  useInput(
+    useCallback(
+      (action) => {
+        if (!picker) return false;
+        if (action === 'left' || action === 'dec') setCursor((c) => wrap(c - 1, options.length));
+        else if (action === 'right' || action === 'inc') setCursor((c) => wrap(c + 1, options.length));
+        else if (action === 'up') setCursor((c) => wrap(c - 5, options.length));
+        else if (action === 'down') setCursor((c) => wrap(c + 5, options.length));
+        else if (action === 'confirm') commit(cursor);
+        else if (action === 'back') setSheet(null);
+        return true;
+      },
+      [picker, options.length, cursor, commit, setSheet],
+    ),
+    picker !== null,
+  );
+
+  if (!picker) return null;
+
+  return (
+    <div className="overlay" onClick={() => setSheet(null)}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-title">
+          {picker.which === 'from' ? t.from : t.to} · {picker.field === 'month' ? t.search : ''}
+        </div>
+        <div className="chip-row">
+          {options.map((option, i) => (
+            <button
+              key={option.value}
+              className={`chip${i === cursor ? ' on' : ''}`}
+              onClick={() => commit(i)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function PlacePickerSheet(): React.JSX.Element | null {
+  const { sheet, setSheet, filters, setFilters, t } = useStore();
+  const [places, setPlaces] = useState<Array<{ city: string; label: string; count: number }>>([]);
+  const [cursor, setCursor] = useState(0);
+  const open = sheet?.kind === 'placePicker';
+
+  useEffect(() => {
+    if (!open) return;
+    void api.places().then(setPlaces).catch(() => setPlaces([]));
+  }, [open]);
+
+  const options = useMemo(
+    () => [{ city: '', label: t.anyPlace, count: 0 }, ...places],
+    [places, t.anyPlace],
+  );
+
+  const commit = useCallback(
+    (index: number) => {
+      const option = options[index];
+      if (!option) return;
+      setFilters((f) => ({ ...f, place: option.city === '' ? null : option.city }));
+      setSheet(null);
+    },
+    [options, setFilters, setSheet],
+  );
+
+  useInput(
+    useCallback(
+      (action) => {
+        if (!open) return false;
+        if (action === 'up' || action === 'dec') setCursor((c) => wrap(c - 1, options.length));
+        else if (action === 'down' || action === 'inc') setCursor((c) => wrap(c + 1, options.length));
+        else if (action === 'confirm') commit(cursor);
+        else if (action === 'back') setSheet(null);
+        return true;
+      },
+      [open, options.length, cursor, commit, setSheet],
+    ),
+    open,
+  );
+
+  if (!open) return null;
+
+  return (
+    <div className="overlay" onClick={() => setSheet(null)}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-title">{t.place}</div>
+        <div className="option-list">
+          {options.map((option, i) => (
+            <button
+              key={option.city || 'any'}
+              className={`option${i === cursor ? ' on' : ''}`}
+              onClick={() => commit(i)}
+            >
+              <span className="n">{option.label}</span>
+              {option.count > 0 && <span className="c">{option.count}</span>}
+              {filters.place === option.city && <IconCheck />}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function TagPickerSheet(): React.JSX.Element | null {
+  const { sheet, setSheet, filters, setFilters, state, t } = useStore();
+  const [cursor, setCursor] = useState(0);
+  const open = sheet?.kind === 'tagPicker';
+  const tags = state?.tags ?? [];
+
+  const toggle = useCallback(
+    (tag: string) => {
+      setFilters((f) => ({
+        ...f,
+        tags: f.tags.includes(tag) ? f.tags.filter((x) => x !== tag) : [...f.tags, tag],
+      }));
+    },
+    [setFilters],
+  );
+
+  useInput(
+    useCallback(
+      (action) => {
+        if (!open) return false;
+        if (action === 'up' || action === 'dec') setCursor((c) => wrap(c - 1, tags.length));
+        else if (action === 'down' || action === 'inc') setCursor((c) => wrap(c + 1, tags.length));
+        else if (action === 'confirm') {
+          const tag = tags[cursor];
+          if (tag) toggle(tag);
+        } else if (action === 'back') setSheet(null);
+        return true;
+      },
+      [open, tags, cursor, toggle, setSheet],
+    ),
+    open,
+  );
+
+  if (!open) return null;
+
+  return (
+    <div className="overlay" onClick={() => setSheet(null)}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-title">{t.tags}</div>
+        {tags.length === 0 ? (
+          <div className="mini">—</div>
+        ) : (
+          <div className="option-list">
+            {tags.map((tag, i) => (
+              <button
+                key={tag}
+                className={`option${i === cursor ? ' on' : ''}`}
+                onClick={() => toggle(tag)}
+              >
+                <IconTag />
+                <span className="n">{tag}</span>
+                {filters.tags.includes(tag) && <IconCheck />}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="form-actions">
+          <button className="btn" onClick={() => setSheet(null)}>
+            {t.cancel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ admin
+
+export function AdminSheet(): React.JSX.Element | null {
+  const { sheet, setSheet, state, refresh, t, toast, setOsk } = useStore();
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const open = sheet?.kind === 'admin';
+
+  useEffect(() => {
+    if (open) {
+      setPassword('');
+      setError(null);
+    }
+  }, [open]);
+
+  const submit = useCallback(
+    async (value: string) => {
+      try {
+        await api.login(value);
+        await refresh();
+        toast(t.adminUnlocked);
+        setSheet(null);
+      } catch (err) {
+        setError(
+          err instanceof ApiError && err.code === 'password_too_short'
+            ? t.passwordTooShort
+            : t.wrongPassword,
+        );
+      }
+    },
+    [refresh, setSheet, t, toast],
+  );
+
+  useInput(
+    useCallback(
+      (action) => {
+        if (!open) return false;
+        if (action === 'back') setSheet(null);
+        else if (action === 'confirm') {
+          setOsk({
+            label: t.password,
+            value: '',
+            onCommit: (value) => void submit(value),
+          });
+        }
+        return true;
+      },
+      [open, setSheet, setOsk, submit, t.password],
+    ),
+    open,
+  );
+
+  if (!open) return null;
+  const isAdmin = state?.isAdmin ?? false;
+
+  return (
+    <div className="overlay" onClick={() => setSheet(null)}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-title">{t.admin}</div>
+
+        {isAdmin && state?.adminPasswordSet ? (
+          <>
+            <div className="mini">{t.adminUnlocked}</div>
+            <div className="form-actions">
+              <button
+                className="btn"
+                onClick={() =>
+                  setOsk({
+                    label: t.changePassword,
+                    value: '',
+                    onCommit: (value) => {
+                      void api
+                        .changePassword(value)
+                        .then(() => toast(t.changePassword))
+                        .catch(() => setError(t.passwordTooShort));
+                    },
+                  })
+                }
+              >
+                {t.changePassword}
+              </button>
+              <button
+                className="btn danger"
+                onClick={() => {
+                  void api.logout().then(refresh);
+                  setSheet(null);
+                }}
+              >
+                {t.lock}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="mini">{state?.adminPasswordSet ? t.password : t.setPassword}</div>
+            <input
+              className="text-input"
+              type="password"
+              autoFocus
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void submit(password);
+              }}
+            />
+            {error && <div className="mini" style={{ color: '#ff9aad' }}>{error}</div>}
+            <div className="form-actions">
+              <button className="btn" onClick={() => setSheet(null)}>
+                {t.cancel}
+              </button>
+              <button className="btn primary" onClick={() => void submit(password)}>
+                {t.unlock}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function FoldersSheet(): React.JSX.Element | null {
+  const { sheet, setSheet, state, refresh, t, toast, setOsk } = useStore();
+  const [path, setPath] = useState('');
+  const [kind, setKind] = useState<Root['kind']>('photos');
+  const [error, setError] = useState<string | null>(null);
+  const open = sheet?.kind === 'folders';
+
+  const add = useCallback(
+    async (value: string) => {
+      const target = value.trim();
+      if (!target) return;
+      try {
+        await api.addRoot(target, kind);
+        await refresh();
+        setPath('');
+        setError(null);
+        if (kind === 'photos') void api.scan();
+      } catch (err) {
+        setError(err instanceof ApiError ? err.code : 'error');
+      }
+    },
+    [kind, refresh],
+  );
+
+  useInput(
+    useCallback(
+      (action) => {
+        if (!open) return false;
+        if (action === 'back') setSheet(null);
+        else if (action === 'confirm') {
+          setOsk({ label: t.folderPath, value: path, onCommit: (value) => void add(value) });
+        }
+        return true;
+      },
+      [open, setSheet, setOsk, t.folderPath, path, add],
+    ),
+    open,
+  );
+
+  if (!open) return null;
+  const roots = state?.roots ?? [];
+  const groups: Array<{ kind: Root['kind']; label: string }> = [
+    { kind: 'photos', label: t.photoFolders },
+    { kind: 'music', label: t.musicFolder },
+    { kind: 'ui', label: t.uiFolder },
+  ];
+
+  return (
+    <div className="overlay" onClick={() => setSheet(null)}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-title">{t.folders}</div>
+
+        {groups.map((group) => (
+          <div key={group.kind} className="field">
+            <span className="lab">{group.label}</span>
+            <div className="option-list">
+              {roots
+                .filter((r) => r.kind === group.kind)
+                .map((root) => (
+                  <div key={root.id} className="option">
+                    <span className="n" style={{ wordBreak: 'break-all', fontSize: '0.84em' }}>
+                      {root.path}
+                    </span>
+                    {!root.exists && <span className="c" style={{ color: '#ff9aad' }}>{t.missing}</span>}
+                    <button
+                      className="tiny-btn danger"
+                      onClick={() => void api.removeRoot(root.id).then(refresh)}
+                    >
+                      <IconTrash />
+                    </button>
+                  </div>
+                ))}
+              {roots.filter((r) => r.kind === group.kind).length === 0 && (
+                <span className="mini">—</span>
+              )}
+            </div>
+          </div>
+        ))}
+
+        <div className="field">
+          <span className="lab">{t.addFolder}</span>
+          <div className="slot-row">
+            {groups.map((group) => (
+              <button
+                key={group.kind}
+                className={`slot${kind === group.kind ? ' on' : ''}`}
+                onClick={() => setKind(group.kind)}
+              >
+                {group.label}
+              </button>
+            ))}
+          </div>
+          <input
+            className="text-input"
+            placeholder={t.folderPath}
+            value={path}
+            onChange={(e) => setPath(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void add(path);
+            }}
+          />
+          {error && <div className="mini" style={{ color: '#ff9aad' }}>{error}</div>}
+          {kind === 'music' && <div className="mini">1.mp3 … 5.mp3</div>}
+        </div>
+
+        <div className="form-actions">
+          <button
+            className="btn"
+            onClick={() => {
+              void api.backfillPlaces().then((r) => toast(`${t.fixPlaces}: ${r.updated}`)).then(refresh);
+            }}
+          >
+            {t.fixPlaces}
+          </button>
+          <button className="btn" onClick={() => void api.scan().then(() => toast(t.scanning))}>
+            {t.rescan}
+          </button>
+          <button className="btn primary" onClick={() => void add(path)}>
+            {t.add}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// -------------------------------------------------------- ajouter à un album
+
+export function AddToAlbumSheet(): React.JSX.Element | null {
+  const { addToAlbumFor, setAddToAlbumFor, state, refresh, t, toast, openView } = useStore();
+  const [cursor, setCursor] = useState(0);
+  const open = addToAlbumFor !== null && addToAlbumFor.length > 0;
+  const albums = state?.albums ?? [];
+
+  const commit = useCallback(
+    async (index: number) => {
+      if (!addToAlbumFor) return;
+      if (index === albums.length) {
+        setAddToAlbumFor(null);
+        openView({ kind: 'newAlbum' });
+        return;
+      }
+      const album = albums[index];
+      if (!album) return;
+      await api.albumMedia(album.id, addToAlbumFor);
+      await refresh();
+      toast(`${addToAlbumFor.length} → ${album.kind === 'favorites' ? t.favorites : album.name}`);
+      setAddToAlbumFor(null);
+    },
+    [addToAlbumFor, albums, refresh, setAddToAlbumFor, t.favorites, toast, openView],
+  );
+
+  useInput(
+    useCallback(
+      (action) => {
+        if (!open) return false;
+        const length = albums.length + 1;
+        if (action === 'up' || action === 'dec') setCursor((c) => wrap(c - 1, length));
+        else if (action === 'down' || action === 'inc') setCursor((c) => wrap(c + 1, length));
+        else if (action === 'confirm') void commit(cursor);
+        else if (action === 'back') setAddToAlbumFor(null);
+        return true;
+      },
+      [open, albums.length, cursor, commit, setAddToAlbumFor],
+    ),
+    open,
+  );
+
+  if (!open) return null;
+
+  return (
+    <div className="overlay" onClick={() => setAddToAlbumFor(null)}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-title">
+          {t.addToAlbum} · {addToAlbumFor?.length}
+        </div>
+        <div className="option-list">
+          {albums.map((album, i) => (
+            <button
+              key={album.id}
+              className={`option${i === cursor ? ' on' : ''}`}
+              onClick={() => void commit(i)}
+            >
+              <span className="swatch" style={{ background: `hsl(${album.color} 88% 58%)` }} />
+              {album.kind === 'favorites' && <IconHeart />}
+              <span className="n">{album.kind === 'favorites' ? t.favorites : album.name}</span>
+              <span className="c">{album.count}</span>
+            </button>
+          ))}
+          <button
+            className={`option${cursor === albums.length ? ' on' : ''}`}
+            onClick={() => void commit(albums.length)}
+          >
+            <IconPlus />
+            <span className="n">{t.newAlbum}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function TagEditorSheet(): React.JSX.Element | null {
+  const { tagEditorFor, setTagEditorFor, state, refresh, t, setOsk, toast } = useStore();
+  const [pending, setPending] = useState<string[]>([]);
+  const [input, setInput] = useState('');
+  const open = tagEditorFor !== null && tagEditorFor.length > 0;
+
+  useEffect(() => {
+    if (open) {
+      setPending([]);
+      setInput('');
+    }
+  }, [open]);
+
+  const apply = useCallback(
+    async (add: string[], remove: string[]) => {
+      if (!tagEditorFor) return;
+      await api.tagMedia(tagEditorFor, add, remove);
+      await refresh();
+      toast(t.editTags);
+    },
+    [tagEditorFor, refresh, t.editTags, toast],
+  );
+
+  useInput(
+    useCallback(
+      (action) => {
+        if (!open) return false;
+        if (action === 'back') setTagEditorFor(null);
+        else if (action === 'confirm') {
+          setOsk({
+            label: t.addTag,
+            value: '',
+            onCommit: (value) => {
+              if (value.trim()) setPending((p) => [...p, value.trim()]);
+            },
+          });
+        }
+        return true;
+      },
+      [open, setTagEditorFor, setOsk, t.addTag],
+    ),
+    open,
+  );
+
+  if (!open) return null;
+  const known = state?.tags ?? [];
+
+  return (
+    <div className="overlay" onClick={() => setTagEditorFor(null)}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-title">
+          {t.editTags} · {tagEditorFor?.length}
+        </div>
+
+        <div className="chip-row">
+          {pending.map((tag) => (
+            <span key={tag} className="chip on">
+              {tag}
+              <button className="x" onClick={() => setPending((p) => p.filter((x) => x !== tag))}>
+                <IconX />
+              </button>
+            </span>
+          ))}
+          <input
+            className="text-input"
+            style={{ width: '14ch', flex: '0 0 auto' }}
+            autoFocus
+            value={input}
+            placeholder={t.addTag}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && input.trim()) {
+                setPending((p) => [...p, input.trim()]);
+                setInput('');
+              }
+            }}
+          />
+        </div>
+
+        {known.length > 0 && (
+          <div className="field">
+            <span className="lab">{t.tags}</span>
+            <div className="chip-row">
+              {known.map((tag) => (
+                <span key={tag} className="chip">
+                  <button onClick={() => setPending((p) => (p.includes(tag) ? p : [...p, tag]))}>
+                    {tag}
+                  </button>
+                  <button className="x" title={t.remove} onClick={() => void apply([], [tag])}>
+                    <IconX />
+                  </button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="form-actions">
+          <button className="btn" onClick={() => setTagEditorFor(null)}>
+            {t.cancel}
+          </button>
+          <button
+            className="btn primary"
+            onClick={() => {
+              const add = input.trim() ? [...pending, input.trim()] : pending;
+              void apply(add, []).then(() => setTagEditorFor(null));
+            }}
+          >
+            {t.save}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------ menu contextuel
+
+export interface MenuTarget {
+  x: number;
+  y: number;
+  mediaId: number;
+  inAlbum: number | null;
+  hidden: boolean;
+  favorite: boolean;
+}
+
+export function ContextMenu({
+  target,
+  onClose,
+  onOpen,
+  onAddToAlbum,
+  onToggleFavorite,
+  onToggleHidden,
+  onEditTags,
+  onSelectMode,
+  onRemoveFromAlbum,
+  onSetCover,
+}: {
+  target: MenuTarget;
+  onClose: () => void;
+  onOpen: () => void;
+  onAddToAlbum: () => void;
+  onToggleFavorite: () => void;
+  onToggleHidden: () => void;
+  onEditTags: () => void;
+  onSelectMode: () => void;
+  onRemoveFromAlbum: () => void;
+  onSetCover: () => void;
+}): React.JSX.Element {
+  const { t, state } = useStore();
+  const isAdmin = state?.isAdmin ?? false;
+
+  useEffect(() => {
+    const close = (): void => onClose();
+    window.addEventListener('click', close);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('resize', close);
+    };
+  }, [onClose]);
+
+  const style = {
+    left: Math.min(target.x, window.innerWidth - 230),
+    top: Math.min(target.y, window.innerHeight - 320),
+  };
+
+  return (
+    <div className="menu" style={style} onClick={(e) => e.stopPropagation()}>
+      <button className="menu-item" onClick={onOpen}>
+        <IconExpand /> {t.fullscreen}
+      </button>
+      <button className="menu-item" onClick={onToggleFavorite}>
+        <IconHeart /> {t.favorites}
+      </button>
+      <button className="menu-item" onClick={onAddToAlbum}>
+        <IconPlus /> {t.addToAlbum}
+      </button>
+      <button className="menu-item" onClick={onSelectMode}>
+        <IconSelect /> {t.selectMode}
+      </button>
+
+      {isAdmin && (
+        <>
+          <div className="menu-sep" />
+          <button className="menu-item" onClick={onEditTags}>
+            <IconTag /> {t.editTags}
+          </button>
+          {target.inAlbum !== null && (
+            <>
+              <button className="menu-item" onClick={onSetCover}>
+                <IconPencil /> {t.setCover}
+              </button>
+              <button className="menu-item" onClick={onRemoveFromAlbum}>
+                <IconX /> {t.removeFromAlbum}
+              </button>
+            </>
+          )}
+          <button className="menu-item" onClick={onToggleHidden}>
+            <IconHide /> {target.hidden ? t.unhide : t.hide}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ----------------------------------------------------- clavier à l'écran
+
+const OSK_ROWS: Array<Array<{ key: string; label?: string; span?: number }>> = [
+  '1234567890'.split('').map((key) => ({ key })),
+  'qwertyuiop'.split('').map((key) => ({ key })),
+  'asdfghjkl-'.split('').map((key) => ({ key })),
+  'zxcvbnm,._'.split('').map((key) => ({ key })),
+  [
+    { key: ' shift', label: 'ABC', span: 2 },
+    { key: ' ', label: '␣', span: 4 },
+    { key: ' back', label: '⌫', span: 2 },
+    { key: ' done', label: 'OK', span: 2 },
+  ],
+];
+
+/**
+ * Clavier affiché quand on valide un champ texte à la manette. À la souris ou au
+ * clavier physique, on tape directement dans le champ — ce panneau ne s'ouvre
+ * que si on le demande.
+ */
+export function Osk(): React.JSX.Element | null {
+  const { osk, setOsk, t } = useStore();
+  const [value, setValue] = useState('');
+  const [row, setRow] = useState(1);
+  const [col, setCol] = useState(0);
+  const [shift, setShift] = useState(false);
+
+  useEffect(() => {
+    if (osk) {
+      setValue(osk.value);
+      setRow(1);
+      setCol(0);
+      setShift(false);
+    }
+  }, [osk]);
+
+  const press = useCallback(
+    (key: string) => {
+      if (key === ' shift') {
+        setShift((s) => !s);
+        return;
+      }
+      if (key === ' back') {
+        setValue((v) => v.slice(0, -1));
+        return;
+      }
+      if (key === ' done') {
+        osk?.onCommit(value);
+        setOsk(null);
+        return;
+      }
+      setValue((v) => v + (shift ? key.toUpperCase() : key));
+      if (shift) setShift(false);
+    },
+    [osk, value, shift, setOsk],
+  );
+
+  useInput(
+    useCallback(
+      (action) => {
+        if (!osk) return false;
+        if (action === 'up') setRow((r) => wrap(r - 1, OSK_ROWS.length));
+        else if (action === 'down') setRow((r) => wrap(r + 1, OSK_ROWS.length));
+        else if (action === 'left') setCol((c) => wrap(c - 1, OSK_ROWS[row].length));
+        else if (action === 'right') setCol((c) => wrap(c + 1, OSK_ROWS[row].length));
+        else if (action === 'confirm') press(OSK_ROWS[row][Math.min(col, OSK_ROWS[row].length - 1)].key);
+        else if (action === 'actionX') setValue((v) => v.slice(0, -1));
+        else if (action === 'actionY') {
+          osk.onCommit(value);
+          setOsk(null);
+        } else if (action === 'back') setOsk(null);
+        return true;
+      },
+      [osk, row, col, press, value, setOsk],
+    ),
+    osk !== null,
+  );
+
+  if (!osk) return null;
+
+  return (
+    <div className="overlay" onClick={() => setOsk(null)}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-title">{osk.label}</div>
+        <input
+          className="text-input"
+          value={value}
+          autoFocus
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              osk.onCommit(value);
+              setOsk(null);
+            }
+          }}
+        />
+        <div className="osk-keys">
+          {OSK_ROWS.map((keys, r) =>
+            keys.map((entry, c) => (
+              <button
+                key={`${r}-${entry.key}`}
+                className={`key${entry.span ? ' wide' : ''}${r === row && c === col ? ' on' : ''}`}
+                style={entry.span ? { gridColumn: `span ${entry.span}` } : undefined}
+                onClick={() => {
+                  setRow(r);
+                  setCol(c);
+                  press(entry.key);
+                }}
+              >
+                {entry.label ?? (shift ? entry.key.toUpperCase() : entry.key)}
+              </button>
+            )),
+          )}
+        </div>
+        <div className="form-actions">
+          <button className="btn" onClick={() => setOsk(null)}>
+            {t.cancel}
+          </button>
+          <button
+            className="btn primary"
+            onClick={() => {
+              osk.onCommit(value);
+              setOsk(null);
+            }}
+          >
+            {t.save}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function Toasts(): React.JSX.Element {
+  const { toasts } = useStore();
+  return (
+    <div className="toasts">
+      {toasts.map((toast) => (
+        <div key={toast.id} className="toast">
+          {toast.text}
+        </div>
+      ))}
+    </div>
+  );
+}

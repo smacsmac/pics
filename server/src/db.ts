@@ -1,0 +1,143 @@
+import Database from 'better-sqlite3';
+import { DB_PATH, ensureDirs } from './paths.js';
+
+ensureDirs();
+
+export const db = new Database(DB_PATH);
+db.pragma('journal_mode = WAL');
+db.pragma('synchronous = NORMAL');
+db.pragma('foreign_keys = ON');
+
+db.exec(`
+CREATE TABLE IF NOT EXISTS roots (
+  id      INTEGER PRIMARY KEY,
+  path    TEXT NOT NULL,
+  kind    TEXT NOT NULL DEFAULT 'photos',
+  UNIQUE(path, kind)
+);
+
+CREATE TABLE IF NOT EXISTS media (
+  id            INTEGER PRIMARY KEY,
+  path          TEXT NOT NULL UNIQUE,
+  root_id       INTEGER REFERENCES roots(id) ON DELETE SET NULL,
+  filename      TEXT NOT NULL,
+  kind          TEXT NOT NULL,
+  ext           TEXT NOT NULL,
+  bytes         INTEGER NOT NULL DEFAULT 0,
+  mtime         INTEGER NOT NULL DEFAULT 0,
+  taken_at      INTEGER NOT NULL,
+  taken_source  TEXT NOT NULL DEFAULT 'mtime',
+  width         INTEGER,
+  height        INTEGER,
+  duration      REAL,
+  lat           REAL,
+  lon           REAL,
+  place_city    TEXT,
+  place_admin   TEXT,
+  place_country TEXT,
+  camera        TEXT,
+  hidden        INTEGER NOT NULL DEFAULT 0,
+  thumb_state   TEXT NOT NULL DEFAULT 'pending',
+  missing       INTEGER NOT NULL DEFAULT 0,
+  added_at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_media_taken   ON media(taken_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_media_visible ON media(hidden, missing, taken_at DESC);
+CREATE INDEX IF NOT EXISTS idx_media_kind    ON media(kind);
+CREATE INDEX IF NOT EXISTS idx_media_thumb   ON media(thumb_state);
+
+CREATE TABLE IF NOT EXISTS albums (
+  id             INTEGER PRIMARY KEY,
+  name           TEXT NOT NULL,
+  color          INTEGER NOT NULL DEFAULT 285,
+  music_slot     INTEGER,
+  cover_media_id INTEGER REFERENCES media(id) ON DELETE SET NULL,
+  kind           TEXT NOT NULL DEFAULT 'user',
+  created_at     INTEGER NOT NULL,
+  updated_at     INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS album_media (
+  album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+  media_id INTEGER NOT NULL REFERENCES media(id) ON DELETE CASCADE,
+  added_at INTEGER NOT NULL,
+  PRIMARY KEY (album_id, media_id)
+);
+CREATE INDEX IF NOT EXISTS idx_album_media_media ON album_media(media_id);
+
+CREATE TABLE IF NOT EXISTS tags (
+  id   INTEGER PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE COLLATE NOCASE
+);
+
+CREATE TABLE IF NOT EXISTS media_tags (
+  media_id INTEGER NOT NULL REFERENCES media(id) ON DELETE CASCADE,
+  tag_id   INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+  PRIMARY KEY (media_id, tag_id)
+);
+CREATE INDEX IF NOT EXISTS idx_media_tags_tag ON media_tags(tag_id);
+
+CREATE TABLE IF NOT EXISTS album_tags (
+  album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+  tag_id   INTEGER NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+  PRIMARY KEY (album_id, tag_id)
+);
+
+CREATE TABLE IF NOT EXISTS settings (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+`);
+
+/** L'album « favoris » est un album normal, simplement épinglé et non supprimable. */
+export function ensureFavoritesAlbum(): number {
+  const existing = db.prepare(`SELECT id FROM albums WHERE kind = 'favorites'`).get() as
+    | { id: number }
+    | undefined;
+  if (existing) return existing.id;
+  const now = Date.now();
+  const info = db
+    .prepare(
+      `INSERT INTO albums (name, color, kind, created_at, updated_at)
+       VALUES ('Favorites', 340, 'favorites', ?, ?)`,
+    )
+    .run(now, now);
+  return Number(info.lastInsertRowid);
+}
+
+export const FAVORITES_ID = ensureFavoritesAlbum();
+
+export function getSetting<T>(key: string, fallback: T): T {
+  const row = db.prepare(`SELECT value FROM settings WHERE key = ?`).get(key) as
+    | { value: string }
+    | undefined;
+  if (!row) return fallback;
+  try {
+    return JSON.parse(row.value) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+export function setSetting(key: string, value: unknown): void {
+  db.prepare(
+    `INSERT INTO settings (key, value) VALUES (?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+  ).run(key, JSON.stringify(value));
+}
+
+export function tagId(name: string): number {
+  const clean = name.trim();
+  db.prepare(`INSERT OR IGNORE INTO tags (name) VALUES (?)`).run(clean);
+  const row = db.prepare(`SELECT id FROM tags WHERE name = ?`).get(clean) as { id: number };
+  return row.id;
+}
+
+/** Un tag qui n'est plus attaché à rien n'a pas à traîner dans la liste des filtres. */
+export function pruneOrphanTags(): void {
+  db.exec(`
+    DELETE FROM tags
+    WHERE id NOT IN (SELECT tag_id FROM media_tags)
+      AND id NOT IN (SELECT tag_id FROM album_tags)
+  `);
+}
