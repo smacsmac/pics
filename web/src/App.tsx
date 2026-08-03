@@ -3,7 +3,9 @@ import type { Album, MediaItem } from '../../shared/types';
 import {
   AlbumForm, AlbumMusic, AlbumsGrid, ALBUM_FIELDS, clampPercent, type AlbumDraft,
 } from './components/Albums';
-import { IconGamepad, IconPencil, IconSelect, IconX } from './components/Icons';
+import {
+  IconCompact, IconGamepad, IconPencil, IconRows, IconSelect, IconX,
+} from './components/Icons';
 import {
   AddToAlbumSheet, AdminSheet, ContextMenu, FoldersSheet, MonthPickerSheet, Osk,
   PlacePickerSheet, TagEditorSheet, TagPickerSheet, Toasts, type MenuTarget,
@@ -14,7 +16,7 @@ import { TOP, TopBar, settingsIndex, topCount } from './components/TopBar';
 import { Viewer } from './components/Viewer';
 import { api } from './lib/api';
 import { groupByDay, useHistogram, useMediaFeed } from './lib/feed';
-import { buildCells, moveFocus, TILE_WIDTHS, type Direction } from './lib/grid';
+import { buildCells, moveFocus, spatialMove, TILE_WIDTHS, type Direction } from './lib/grid';
 import { LANGS } from './lib/i18n';
 import { onPadStatus, startInput, useInput, type Action, type PadStatus } from './lib/input';
 import { FONT_MAX, HUES, LEFT_ROWS, VOLUME_MAX, rightRows } from './lib/panels';
@@ -56,7 +58,8 @@ export function App(): React.JSX.Element {
   const [backdrop, setBackdrop] = useState<string | null>(null);
   const [pad, setPad] = useState<PadStatus>({ connected: false, id: null });
   const [draft, setDraft] = useState<AlbumDraft>({
-    name: '', color: 285, musicSlot: null, videoMusicPct: 20, tags: [],
+    name: '', color: 285, musicSlot: null, videoMusicPct: 20,
+    background: null, backgroundOpacity: 35, tags: [],
   });
 
   // Nombre de tuiles d'albums récents réellement à l'écran : ce que la largeur
@@ -124,11 +127,16 @@ export function App(): React.JSX.Element {
         color: currentAlbum.color,
         musicSlot: currentAlbum.musicSlot,
         videoMusicPct: currentAlbum.videoMusicPct,
+        background: currentAlbum.background,
+        backgroundOpacity: currentAlbum.backgroundOpacity,
         tags: currentAlbum.tags,
       });
     }
     if (view.kind === 'newAlbum') {
-      setDraft({ name: '', color: settings.hue, musicSlot: null, videoMusicPct: 20, tags: [] });
+      setDraft({
+        name: '', color: settings.hue, musicSlot: null, videoMusicPct: 20,
+        background: null, backgroundOpacity: 35, tags: [],
+      });
     }
   }, [view, currentAlbum, settings.hue]);
 
@@ -216,6 +224,9 @@ export function App(): React.JSX.Element {
       switch (index) {
         case TOP.SEARCH:
           setNav((n) => ({ ...n, zone: 'left', topIndex: TOP.SEARCH, panelIndex: 0, subIndex: 0 }));
+          break;
+        case TOP.HOME:
+          openView({ kind: 'timeline' });
           break;
         case TOP.ALBUMS:
           openView({ kind: 'albums' });
@@ -383,6 +394,19 @@ export function App(): React.JSX.Element {
         return true;
       }
 
+      // LT/RT sont réservées à la barre du haut : elles y ramènent depuis
+      // n'importe où, ce qui referme au passage la barre latérale ouverte.
+      if (action === 'tabPrev' || action === 'tabNext') {
+        if (viewerIndex !== null) return true;
+        const delta = action === 'tabNext' ? 1 : -1;
+        setNav((n) => ({
+          ...n,
+          zone: 'top',
+          topIndex: Math.min(topCount(recentVisible) - 1, Math.max(0, n.topIndex + delta)),
+        }));
+        return true;
+      }
+
       // ---- visionneuse plein écran
       if (viewerIndex !== null) {
         const item = feed.items[viewerIndex];
@@ -538,11 +562,21 @@ export function App(): React.JSX.Element {
         const cells = buildCells(sections, cols);
         switch (action) {
           case 'up':
-          case 'down':
+          case 'down': {
+            // La position réelle à l'écran prime : elle vaut pour les deux
+            // dispositions. Le calcul par index reste le filet de sécurité,
+            // et c'est lui qui sait rendre la main à la barre du haut.
+            const spatial = spatialMove(action, nav.contentIndex);
+            const next =
+              spatial ?? moveFocus(cells, sections, cols, nav.contentIndex, action as Direction);
+            if (next < 0) setNav((n) => ({ ...n, zone: 'top', topIndex: TOP.HOME }));
+            else setNav((n) => ({ ...n, contentIndex: next }));
+            break;
+          }
           case 'left':
           case 'right': {
             const next = moveFocus(cells, sections, cols, nav.contentIndex, action as Direction);
-            if (next < 0) setNav((n) => ({ ...n, zone: 'top', topIndex: TOP.ALBUMS }));
+            if (next < 0) setNav((n) => ({ ...n, zone: 'top', topIndex: TOP.HOME }));
             else setNav((n) => ({ ...n, contentIndex: next }));
             break;
           }
@@ -620,6 +654,16 @@ export function App(): React.JSX.Element {
             } else if (field === 'videoMusic') {
               // Par pas de 5 à la manette ; la saisie exacte passe par le clavier.
               setDraft((d) => ({ ...d, videoMusicPct: clampPercent(d.videoMusicPct + delta * 5) }));
+            } else if (field === 'backgroundOpacity') {
+              setDraft((d) => ({
+                ...d,
+                backgroundOpacity: clampPercent(d.backgroundOpacity + delta * 5),
+              }));
+            } else if (field === 'background') {
+              const options: Array<string | null> = [null, ...(state?.backgrounds ?? [])];
+              const index = options.indexOf(draft.background);
+              const next = ((index + delta) % options.length + options.length) % options.length;
+              setDraft((d) => ({ ...d, background: options[next] }));
             }
             break;
           }
@@ -634,6 +678,16 @@ export function App(): React.JSX.Element {
                   setDraft((d) => ({
                     ...d,
                     videoMusicPct: clampPercent(Number(value.replace(/\D/g, '') || 0)),
+                  })),
+              });
+            } else if (field === 'backgroundOpacity') {
+              setOsk({
+                label: t.backgroundOpacity,
+                value: String(draft.backgroundOpacity),
+                onCommit: (value) =>
+                  setDraft((d) => ({
+                    ...d,
+                    backgroundOpacity: clampPercent(Number(value.replace(/\D/g, '') || 0)),
                   })),
               });
             } else if (field === 'tags') {
@@ -729,12 +783,32 @@ export function App(): React.JSX.Element {
       />
 
       <div className="shell">
-        {showLeft && <SearchPanel />}
+        {/* Gouttière toujours présente : la grille ne bouge pas quand la barre
+            s'ouvre ou se ferme. */}
+        <div className="gutter">
+          {showLeft && (
+            <SearchPanel
+              onFocusRow={(row, sub) =>
+                setNav((n) => ({ ...n, zone: 'left', panelIndex: row, subIndex: sub ?? 0 }))
+              }
+            />
+          )}
+        </div>
 
         <main className="stage">
-          {(stageTitle || filtersActive) && (
+          {currentAlbum?.background && (
+            <div
+              className="album-bg"
+              style={{
+                backgroundImage: `url(${api.backgroundUrl(currentAlbum.background)})`,
+                opacity: currentAlbum.backgroundOpacity / 100,
+              }}
+            />
+          )}
+
+          {(stageTitle || filtersActive || isMediaView) && (
             <div className="stage-head">
-              <span className="stage-title">{stageTitle ?? t.search}</span>
+              <span className="stage-title">{stageTitle ?? t.home}</span>
               {isMediaView && (
                 <span className="stage-sub">
                   {view.kind === 'videos' ? t.videoCount(feed.total) : t.photoCount(feed.total)}
@@ -747,6 +821,33 @@ export function App(): React.JSX.Element {
                   onClick={() => openView({ kind: 'editAlbum', id: currentAlbum.id })}
                 >
                   <IconPencil /> {t.editAlbum}
+                </button>
+              )}
+
+              {isMediaView && (
+                <div className="head-toggle">
+                  <button
+                    className={settings.layout === 'day' ? 'on' : ''}
+                    title={t.layoutDay}
+                    aria-label={t.layoutDay}
+                    onClick={() => patchSettings({ layout: 'day' })}
+                  >
+                    <IconRows />
+                  </button>
+                  <button
+                    className={settings.layout === 'compact' ? 'on' : ''}
+                    title={t.layoutCompact}
+                    aria-label={t.layoutCompact}
+                    onClick={() => patchSettings({ layout: 'compact' })}
+                  >
+                    <IconCompact />
+                  </button>
+                </div>
+              )}
+
+              {anchor !== null && (
+                <button className="tiny-btn" onClick={() => setAnchor(null)}>
+                  <IconX /> {t.today}
                 </button>
               )}
             </div>
@@ -822,16 +923,6 @@ export function App(): React.JSX.Element {
             />
           )}
 
-          {anchor !== null && (
-            <button
-              className="tiny-btn"
-              style={{ position: 'absolute', top: 12, right: 74, zIndex: 6 }}
-              onClick={() => setAnchor(null)}
-            >
-              <IconX /> {t.today}
-            </button>
-          )}
-
           {selectMode && (
             <div className="selection-bar">
               <IconSelect />
@@ -865,7 +956,15 @@ export function App(): React.JSX.Element {
           )}
         </main>
 
-        {showRight && <SettingsPanel />}
+        <div className="gutter">
+          {showRight && (
+            <SettingsPanel
+              onFocusRow={(row, sub) =>
+                setNav((n) => ({ ...n, zone: 'right', panelIndex: row, subIndex: sub ?? 0 }))
+              }
+            />
+          )}
+        </div>
       </div>
 
       <div className="status-line">

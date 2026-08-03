@@ -65,17 +65,20 @@ export const api = {
   albums: () => request<Album[]>('/api/albums'),
 
   createAlbum: (body: {
-    name: string; color: number; musicSlot: number | null;
-    videoMusicPct: number; tags: string[];
+    name: string; color: number; musicSlot: number | null; videoMusicPct: number;
+    background: string | null; backgroundOpacity: number; tags: string[];
   }) => request<Album>('/api/albums', { method: 'POST', body: JSON.stringify(body) }),
 
   updateAlbum: (
     id: number,
     body: Partial<{
       name: string; color: number; musicSlot: number | null; videoMusicPct: number;
+      background: string | null; backgroundOpacity: number;
       coverMediaId: number | null; tags: string[];
     }>,
   ) => request<Album>(`/api/albums/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  backgroundUrl: (name: string) => `/api/background?name=${encodeURIComponent(name)}`,
 
   deleteAlbum: (id: number) => request<{ deleted: number }>(`/api/albums/${id}`, { method: 'DELETE' }),
 

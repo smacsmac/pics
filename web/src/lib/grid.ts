@@ -33,6 +33,52 @@ export function buildCells(sections: DaySection[], cols: number): Cell[] {
 
 export type Direction = 'up' | 'down' | 'left' | 'right';
 
+/**
+ * Déplacement vertical calculé sur la position réelle des tuiles à l'écran,
+ * et non sur un index. C'est ce qui permet à ↑/↓ de suivre aussi bien la vue
+ * par journée que la vue condensée, où une ligne mélange plusieurs journées.
+ *
+ * Renvoie null si rien n'est atteignable dans cette direction — l'appelant
+ * retombe alors sur le calcul par index, qui sait remonter à la barre du haut.
+ */
+export function spatialMove(direction: 'up' | 'down', current: number): number | null {
+  const els = Array.from(document.querySelectorAll<HTMLElement>('[data-flat]'));
+  const rects = els
+    .map((el) => ({ index: Number(el.dataset.flat), rect: el.getBoundingClientRect() }))
+    // Une section hors écran n'est pas mise en page : ses rectangles sont vides.
+    .filter((e) => Number.isFinite(e.index) && e.rect.width > 0);
+
+  const from = rects.find((e) => e.index === current);
+  if (!from) return null;
+
+  const centerX = from.rect.left + from.rect.width / 2;
+  const tolerance = from.rect.height * 0.4;
+
+  const candidates = rects.filter((e) => {
+    if (e.index === current) return false;
+    const dy = e.rect.top - from.rect.top;
+    return direction === 'down' ? dy > tolerance : dy < -tolerance;
+  });
+  if (candidates.length === 0) return null;
+
+  // D'abord la ligne la plus proche, ensuite la colonne la plus proche dedans.
+  const nearestRow = Math.min(...candidates.map((e) => Math.abs(e.rect.top - from.rect.top)));
+  const sameRow = candidates.filter(
+    (e) => Math.abs(Math.abs(e.rect.top - from.rect.top) - nearestRow) <= tolerance,
+  );
+
+  let best = sameRow[0];
+  let bestDx = Infinity;
+  for (const candidate of sameRow) {
+    const dx = Math.abs(candidate.rect.left + candidate.rect.width / 2 - centerX);
+    if (dx < bestDx) {
+      bestDx = dx;
+      best = candidate;
+    }
+  }
+  return best.index;
+}
+
 export function moveFocus(
   cells: Cell[],
   sections: DaySection[],

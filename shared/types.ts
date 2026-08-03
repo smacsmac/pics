@@ -28,6 +28,10 @@ export interface Album {
   musicSlot: number | null; // 1..5
   /** Volume de la musique pendant une vidéo, en % du volume global (0-100). */
   videoMusicPct: number;
+  /** Nom du fichier d'arrière-plan, dans le dossier d'images d'interface. */
+  background: string | null;
+  /** Opacité de cet arrière-plan, en pourcentage (0-100). */
+  backgroundOpacity: number;
   coverMediaId: number | null;
   kind: 'user' | 'favorites';
   count: number;
@@ -43,6 +47,8 @@ export interface Settings {
   lang: Lang;
   thumbSize: number; // 0..4
   showHidden: boolean;
+  /** « day » groupe par journée ; « compact » enchaîne les journées en largeur. */
+  layout: 'day' | 'compact';
 }
 
 export interface Root {
@@ -75,6 +81,8 @@ export interface AppState {
   scan: ScanStatus;
   counts: { photos: number; videos: number; hidden: number };
   musicSlots: number[];
+  /** Noms des images utilisables comme arrière-plan d'album. */
+  backgrounds: string[];
   bounds: { min: number | null; max: number | null };
 }
 

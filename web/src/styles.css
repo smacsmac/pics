@@ -21,7 +21,9 @@
 
   --radius: 14px;
   --gap: 10px;
-  --topbar-h: 78px;
+  --edge: 22px;
+  --panel-w: 208px;
+  --topbar-h: 84px;
 
   color-scheme: dark;
 }
@@ -83,8 +85,19 @@ input { background: none; border: none; outline: none; }
   flex: 1;
   display: flex;
   gap: var(--gap);
-  padding: 0 var(--gap) var(--gap);
+  /* La marge latérale laisse respirer les halos néon : sans elle, la lueur des
+     tuiles de bord et des boutons est coupée net par le bord de l'écran. */
+  padding: 0 var(--edge) var(--edge);
   min-height: 0;
+}
+
+/* Les deux gouttières existent en permanence, vides quand leur barre est
+   fermée : la grille de photos ne doit jamais se décaler quand une barre
+   s'ouvre ou se ferme. */
+.gutter {
+  width: var(--panel-w);
+  flex: 0 0 auto;
+  min-width: 0;
 }
 
 /* ------------------------------------------------------------------- topbar */
@@ -93,7 +106,7 @@ input { background: none; border: none; outline: none; }
   display: flex;
   align-items: center;
   gap: var(--gap);
-  padding: var(--gap);
+  padding: 12px var(--edge);
   height: var(--topbar-h);
   flex: 0 0 auto;
 }
@@ -147,11 +160,11 @@ input { background: none; border: none; outline: none; }
 
 .topbtn.on .topbtn-label { opacity: 1; color: var(--accent-ink); }
 
+/* Pas d'overflow caché ici : il rognait le halo des tuiles d'albums récents. */
 .recents {
   display: flex;
   gap: var(--gap);
   align-items: center;
-  overflow: hidden;
   min-width: 0;
 }
 
@@ -190,8 +203,8 @@ input { background: none; border: none; outline: none; }
 /* -------------------------------------------------------------- panneaux */
 
 .panel {
-  width: 216px;
-  flex: 0 0 auto;
+  width: 100%;
+  height: 100%;
   background: color-mix(in oklab, var(--surface) 88%, transparent);
   backdrop-filter: blur(14px);
   border: 1px solid var(--line);
@@ -373,11 +386,24 @@ input { background: none; border: none; outline: none; }
   overflow-x: hidden;
   scrollbar-width: thin;
   scrollbar-color: var(--surface-3) transparent;
-  padding: 14px 16px 60px;
+  /* Marge suffisante pour que le halo d'une tuile de bord ne soit pas coupé. */
+  padding: 18px 22px 60px;
+  position: relative;
+  z-index: 1;
 }
 
 /* Laisse la place au curseur de dates pour qu'il ne recouvre pas les tuiles. */
-.stage-scroll.with-scrubber { padding-right: 88px; }
+.stage-scroll.with-scrubber { padding-right: 92px; }
+
+/* Arrière-plan choisi pour l'album, derrière ses photos. */
+.album-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  pointer-events: none;
+  z-index: 0;
+}
 
 .stage-scroll::-webkit-scrollbar { width: 10px; }
 .stage-scroll::-webkit-scrollbar-thumb {
@@ -396,22 +422,83 @@ input { background: none; border: none; outline: none; }
 .stage-title { font-size: 1.24em; font-weight: 600; letter-spacing: 0.01em; }
 .stage-sub { font-size: 0.78em; color: var(--muted); }
 
+/* Pastille plutôt que bande pleine largeur : sur un album avec arrière-plan,
+   une barre sombre traversait l'image de part en part. */
 .day-head {
   position: sticky;
-  top: -14px;
+  top: 0;
   z-index: 2;
-  padding: 10px 2px 8px;
+  width: fit-content;
+  margin: 4px 0 8px;
+  padding: 5px 12px;
+  border-radius: 10px;
   font-size: 0.9em;
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--text);
-  background: linear-gradient(180deg, rgba(6, 6, 10, 0.92), rgba(6, 6, 10, 0.5) 68%, transparent);
-  backdrop-filter: blur(6px);
+  background: rgba(8, 8, 14, 0.82);
+  backdrop-filter: blur(8px);
 }
 
 .day-head .cnt { color: var(--muted); font-weight: 400; font-size: 0.82em; margin-left: 8px; }
 
 .grid { display: grid; gap: 6px; margin-bottom: 16px; }
+
+/* ------------------------------------------------------- vue condensée
+
+   Les journées s'enchaînent en largeur. Chaque journée est un bloc insécable :
+   si elle ne tient pas dans la place restante, elle passe à la ligne entière
+   plutôt que d'être coupée en deux. */
+.compact-flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 20px 16px;
+  margin-bottom: 16px;
+}
+
+.compact-day { display: flex; flex-direction: column; gap: 5px; }
+
+.compact-day > .lab {
+  font-size: 0.72em;
+  color: var(--muted);
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(8, 8, 14, 0.6);
+  width: fit-content;
+  max-width: 100%;
+}
+
+.compact-day.current > .lab { color: var(--accent-ink); }
+.compact-grid { display: grid; gap: 6px; }
+
+/* Juste après le titre, pas à droite de la barre : le curseur de dates occupe
+   ce coin-là et intercepterait les clics. */
+.head-toggle { display: flex; gap: 4px; }
+
+.head-toggle button {
+  width: 30px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+}
+
+.head-toggle button svg { width: 15px; height: 15px; }
+.head-toggle button:hover { color: var(--text); border-color: var(--accent-deep); }
+
+.head-toggle button.on {
+  color: var(--accent-ink);
+  border-color: var(--accent);
+  box-shadow: 0 0 12px var(--glow-soft);
+}
 
 /* ------------------------------------------------------------------ tuiles */
 
@@ -670,6 +757,47 @@ input { background: none; border: none; outline: none; }
 .slot.on { background: var(--accent-soft); color: #08080c; border-color: var(--accent); font-weight: 600; }
 .slot.off { opacity: 0.42; }
 
+.bg-row { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.bg-chip {
+  width: 58px;
+  height: 38px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background-size: cover;
+  background-position: center;
+  transition: box-shadow 0.14s, border-color 0.14s, transform 0.14s;
+}
+
+.bg-chip.none {
+  width: auto;
+  padding: 0 12px;
+  font-size: 0.78em;
+  color: var(--muted);
+  background: var(--surface-3);
+}
+
+.bg-chip.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 14px var(--glow-soft);
+  transform: translateY(-1px);
+}
+
+/* Aperçu : l'image sous un voile qui suit l'opacité choisie. */
+.bg-preview {
+  position: relative;
+  width: 76px;
+  height: 30px;
+  border-radius: 7px;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  border: 1px solid var(--line);
+  flex: 0 0 auto;
+}
+
+.bg-preview > span { position: absolute; inset: 0; background: var(--bg); }
+
 .pct { display: flex; align-items: center; gap: 8px; }
 .pct .text-input { width: 5.5ch; flex: 0 0 auto; text-align: center; }
 .pct .unit { color: var(--muted); font-size: 0.9em; }
@@ -720,7 +848,8 @@ input { background: none; border: none; outline: none; }
 
 .scrubber {
   position: absolute;
-  top: 12px;
+  /* Démarre sous l'en-tête, dont il masquerait sinon les boutons. */
+  top: 56px;
   right: 4px;
   bottom: 12px;
   width: 62px;
@@ -1022,10 +1151,27 @@ input { background: none; border: none; outline: none; }
 
 .pad-hint { margin-left: auto; display: flex; align-items: center; gap: 6px; }
 
-@media (max-width: 780px) {
-  .panel { position: absolute; top: 0; bottom: 0; z-index: 20; }
-  .panel.right { right: 0; }
-  .topbtn { width: 50px; height: 48px; }
-  .recent-chip { min-width: 82px; }
+/* Gouttières plus étroites dès qu'on descend sous le 1440 : réserver deux fois
+   208 px sur un écran 720p coûterait un tiers de la largeur utile. */
+@media (max-width: 1400px) {
+  :root { --panel-w: 168px; --edge: 16px; }
+  .panel { padding: 8px; }
+  .pill { font-size: 0.78em; padding: 5px 6px; }
+}
+
+/* Sur écran étroit, réserver deux gouttières coûterait toute la place : les
+   barres repassent en surcouche au-dessus de la grille. */
+@media (max-width: 900px) {
+  :root { --edge: 12px; }
+  .gutter { width: 0; }
+  .panel {
+    position: absolute;
+    top: var(--topbar-h);
+    bottom: 0;
+    width: var(--panel-w);
+    z-index: 20;
+  }
+  .panel.right { right: var(--edge); }
+  .topbtn { max-width: 72px; height: 54px; }
   .scrubber { display: none; }
 }

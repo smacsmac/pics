@@ -6,7 +6,9 @@ import { useStore } from '../lib/store';
 import { IconAlbum, IconPencil, IconTrash, IconX } from './Icons';
 
 /** Champs traversables d'un formulaire d'album (nav.contentIndex les indexe). */
-export const ALBUM_FIELDS = ['name', 'color', 'music', 'videoMusic', 'tags', 'submit'] as const;
+export const ALBUM_FIELDS = [
+  'name', 'color', 'music', 'videoMusic', 'background', 'backgroundOpacity', 'tags', 'submit',
+] as const;
 export type AlbumField = (typeof ALBUM_FIELDS)[number];
 
 export function AlbumsGrid({
@@ -74,6 +76,8 @@ export interface AlbumDraft {
   musicSlot: number | null;
   /** Volume de la musique pendant une vidéo, en % du volume global. */
   videoMusicPct: number;
+  background: string | null;
+  backgroundOpacity: number;
   tags: string[];
 }
 
@@ -107,6 +111,7 @@ export function AlbumForm({
   const { nav, state, t, setOsk } = useStore();
   const field = ALBUM_FIELDS[nav.zone === 'content' ? nav.contentIndex : -1];
   const slots = state?.musicSlots ?? [];
+  const backgrounds = state?.backgrounds ?? [];
   const [tagInput, setTagInput] = useState('');
 
   const addTag = (raw: string): void => {
@@ -185,6 +190,60 @@ export function AlbumForm({
           />
           <span className="unit">%</span>
           <span className="mini">{t.videoMusicHint}</span>
+        </div>
+      </div>
+
+      <div className={`field${field === 'background' ? ' on' : ''}`}>
+        <span className="lab">{t.background}</span>
+        {backgrounds.length === 0 ? (
+          <span className="mini">{t.backgroundNoFolder}</span>
+        ) : (
+          <div className="bg-row">
+            <button
+              className={`bg-chip none${draft.background === null ? ' on' : ''}`}
+              onClick={() => setDraft((d) => ({ ...d, background: null }))}
+            >
+              {t.backgroundNone}
+            </button>
+            {backgrounds.map((name) => (
+              <button
+                key={name}
+                className={`bg-chip${draft.background === name ? ' on' : ''}`}
+                style={{ backgroundImage: `url(${api.backgroundUrl(name)})` }}
+                title={name}
+                onClick={() => setDraft((d) => ({ ...d, background: name }))}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className={`field${field === 'backgroundOpacity' ? ' on' : ''}`}>
+        <span className="lab">{t.backgroundOpacity}</span>
+        <div className="pct">
+          <input
+            className="text-input"
+            inputMode="numeric"
+            value={draft.backgroundOpacity}
+            aria-label={t.backgroundOpacity}
+            onChange={(e) => {
+              const digits = e.target.value.replace(/\D/g, '').slice(0, 3);
+              setDraft((d) => ({
+                ...d,
+                backgroundOpacity: digits === '' ? 0 : clampPercent(Number(digits)),
+              }));
+            }}
+            onFocus={(e) => e.target.select()}
+          />
+          <span className="unit">%</span>
+          {draft.background && (
+            <span
+              className="bg-preview"
+              style={{ backgroundImage: `url(${api.backgroundUrl(draft.background)})` }}
+            >
+              <span style={{ opacity: 1 - draft.backgroundOpacity / 100 }} />
+            </span>
+          )}
         </div>
       </div>
 

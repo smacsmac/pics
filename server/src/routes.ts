@@ -59,6 +59,7 @@ function albumRows(): Album[] {
     .prepare(
       `SELECT a.id, a.name, a.color, a.music_slot AS musicSlot, a.kind,
               a.video_music_pct AS videoMusicPct,
+              a.background, a.background_opacity AS backgroundOpacity,
               a.created_at AS createdAt, a.updated_at AS updatedAt,
               -- Sans couverture choisie, on prend la photo la plus récente de l'album.
               COALESCE(a.cover_media_id, (
@@ -88,6 +89,42 @@ function albumRows(): Album[] {
   }
 
   return rows.map((a) => ({ ...a, tags: byAlbum.get(a.id) ?? [] }));
+}
+
+const BACKGROUND_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif', '.bmp']);
+
+/**
+ * Images disponibles comme arrière-plan d'album, prises dans le dossier
+ * « images d'interface ». On ne renvoie que des noms de fichiers : le chemin
+ * complet ne quitte jamais le serveur.
+ */
+function backgroundNames(): string[] {
+  const root = db.prepare(`SELECT path FROM roots WHERE kind = 'ui' LIMIT 1`).get() as
+    | { path: string }
+    | undefined;
+  if (!root) return [];
+  try {
+    return fs
+      .readdirSync(root.path, { withFileTypes: true })
+      .filter((e) => e.isFile() && BACKGROUND_EXT.has(path.extname(e.name).toLowerCase()))
+      .map((e) => e.name)
+      .sort((a, b) => a.localeCompare(b))
+      .slice(0, 200);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Résout un nom d'arrière-plan en chemin. On exige une correspondance exacte
+ * avec un fichier réellement listé : aucun « ../ » ne peut passer.
+ */
+function backgroundPath(name: string): string | null {
+  if (!backgroundNames().includes(name)) return null;
+  const root = db.prepare(`SELECT path FROM roots WHERE kind = 'ui' LIMIT 1`).get() as
+    | { path: string }
+    | undefined;
+  return root ? path.join(root.path, name) : null;
 }
 
 /** Les fichiers 1.mp3 … 5.mp3 du dossier musique, tels que l'utilisateur les nomme. */
@@ -175,6 +212,7 @@ export function registerRoutes(app: FastifyInstance): void {
       scan: scanStatus,
       counts: { photos: counts.photos ?? 0, videos: counts.videos ?? 0, hidden: counts.hidden ?? 0 },
       musicSlots: availableMusicSlots(),
+      backgrounds: backgroundNames(),
       bounds: dateBounds(),
     };
   });
@@ -280,23 +318,29 @@ export function registerRoutes(app: FastifyInstance): void {
   app.post('/api/albums', async (req, reply) => {
     if (!requireAdmin(req, reply)) return;
     const body = req.body as {
-      name?: string; color?: number; musicSlot?: number | null;
-      videoMusicPct?: number; tags?: string[];
+      name?: string; color?: number; musicSlot?: number | null; videoMusicPct?: number;
+      background?: string | null; backgroundOpacity?: number; tags?: string[];
     };
     const name = (body.name ?? '').trim();
     if (!name) return reply.code(400).send({ error: 'name_required' });
 
+    const background =
+      typeof body.background === 'string' && backgroundPath(body.background) ? body.background : null;
+
     const now = Date.now();
     const info = db
       .prepare(
-        `INSERT INTO albums (name, color, music_slot, video_music_pct, kind, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'user', ?, ?)`,
+        `INSERT INTO albums (name, color, music_slot, video_music_pct, background,
+                             background_opacity, kind, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'user', ?, ?)`,
       )
       .run(
         name,
         Math.round(body.color ?? getSettings().hue),
         body.musicSlot ?? null,
         clampPercent(body.videoMusicPct, 20),
+        background,
+        clampPercent(body.backgroundOpacity, 35),
         now,
         now,
       );
@@ -315,6 +359,7 @@ export function registerRoutes(app: FastifyInstance): void {
     const id = Number((req.params as { id: string }).id);
     const body = req.body as {
       name?: string; color?: number; musicSlot?: number | null; videoMusicPct?: number;
+      background?: string | null; backgroundOpacity?: number;
       coverMediaId?: number | null; tags?: string[];
     };
     const album = db.prepare(`SELECT id, kind FROM albums WHERE id = ?`).get(id) as
@@ -340,6 +385,16 @@ export function registerRoutes(app: FastifyInstance): void {
     if (body.videoMusicPct !== undefined) {
       sets.push('video_music_pct = ?');
       params.push(clampPercent(body.videoMusicPct, 20));
+    }
+    if (body.background !== undefined) {
+      // null efface l'arrière-plan ; un nom inconnu est refusé silencieusement.
+      const name = body.background === null ? null : String(body.background);
+      sets.push('background = ?');
+      params.push(name !== null && backgroundPath(name) ? name : null);
+    }
+    if (body.backgroundOpacity !== undefined) {
+      sets.push('background_opacity = ?');
+      params.push(clampPercent(body.backgroundOpacity, 35));
     }
     if (body.coverMediaId !== undefined) {
       sets.push('cover_media_id = ?');
@@ -514,6 +569,16 @@ export function registerRoutes(app: FastifyInstance): void {
   });
 
   // ------------------------------------------------------------------ musique
+
+  app.get('/api/backgrounds', async () => backgroundNames());
+
+  app.get('/api/background', async (req, reply) => {
+    const name = (req.query as { name?: string }).name ?? '';
+    const file = backgroundPath(name);
+    if (!file) return reply.code(404).send({ error: 'not_found' });
+    void reply.header('cache-control', 'public, max-age=3600');
+    return sendFile(req, reply, file);
+  });
 
   app.get('/api/music/:slot', async (req, reply) => {
     const slot = Number((req.params as { slot: string }).slot);

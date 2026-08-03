@@ -8,6 +8,7 @@ export const DEFAULT_SETTINGS: Settings = {
   lang: 'fr',
   thumbSize: 2,
   showHidden: false,
+  layout: 'day',
 };
 
 function clamp(value: unknown, min: number, max: number, fallback: number): number {
@@ -25,6 +26,7 @@ export function getSettings(): Settings {
     lang: stored.lang === 'en' || stored.lang === 'ko' || stored.lang === 'fr' ? stored.lang : DEFAULT_SETTINGS.lang,
     thumbSize: clamp(stored.thumbSize, 0, 4, DEFAULT_SETTINGS.thumbSize),
     showHidden: stored.showHidden === true,
+    layout: stored.layout === 'compact' ? 'compact' : 'day',
   };
 }
 

@@ -21,6 +21,14 @@ const en = {
   newAlbum: 'New album',
   settings: 'Settings',
   recent: 'Recent',
+  home: 'Home',
+  layoutDay: 'One row per day',
+  layoutCompact: 'Condensed',
+  background: 'background',
+  backgroundNone: 'none',
+  backgroundOpacity: 'background opacity',
+  backgroundFolder: 'Background images',
+  backgroundNoFolder: 'No background folder yet — Settings → Folders',
 
   from: 'from',
   to: 'to',
@@ -123,6 +131,14 @@ const fr: Dict = {
   newAlbum: 'Nouvel album',
   settings: 'Paramètres',
   recent: 'Récents',
+  home: 'Accueil',
+  layoutDay: 'Une ligne par jour',
+  layoutCompact: 'Condensée',
+  background: 'arrière-plan',
+  backgroundNone: 'aucun',
+  backgroundOpacity: 'opacité de l’arrière-plan',
+  backgroundFolder: 'Images d’arrière-plan',
+  backgroundNoFolder: 'Aucun dossier d’arrière-plans — Paramètres → Dossiers',
 
   from: 'de',
   to: 'à',
@@ -223,6 +239,14 @@ const ko: Dict = {
   newAlbum: '새 앨범',
   settings: '설정',
   recent: '최근',
+  home: '홈',
+  layoutDay: '날짜별 한 줄',
+  layoutCompact: '조밀하게',
+  background: '배경',
+  backgroundNone: '없음',
+  backgroundOpacity: '배경 불투명도',
+  backgroundFolder: '배경 이미지',
+  backgroundNoFolder: '배경 폴더가 없습니다 — 설정 → 폴더',
 
   from: '부터',
   to: '까지',
@@ -331,6 +355,15 @@ export function formatDayHeading(ts: number, lang: Lang): string {
     day: 'numeric',
     month: 'long',
     year: 'numeric',
+  }).format(new Date(ts));
+}
+
+/** Étiquette courte pour la vue condensée, où la place est comptée. */
+export function formatShortDay(ts: number, lang: Lang): string {
+  return new Intl.DateTimeFormat(LOCALE[lang], {
+    day: 'numeric',
+    month: 'short',
+    year: '2-digit',
   }).format(new Date(ts));
 }
 

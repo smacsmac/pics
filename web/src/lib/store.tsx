@@ -106,7 +106,7 @@ interface Store {
 const StoreContext = createContext<Store | null>(null);
 
 const DEFAULT_SETTINGS: Settings = {
-  fontScale: 2, hue: 285, volume: 3, lang: 'fr', thumbSize: 2, showHidden: false,
+  fontScale: 2, hue: 285, volume: 3, lang: 'fr', thumbSize: 2, showHidden: false, layout: 'day',
 };
 
 const EMPTY_FILTERS: Filters = { from: null, to: null, place: null, tags: [] };

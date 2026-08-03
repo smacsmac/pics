@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { Album } from '../../../shared/types';
 import { useStore } from '../lib/store';
 import {
-  IconAlbum, IconGear, IconHeart, IconPlus, IconSearch, IconVideo,
+  IconAlbum, IconGear, IconHeart, IconHome, IconPlus, IconSearch, IconVideo,
 } from './Icons';
 
 /**
@@ -12,11 +12,12 @@ import {
  */
 export const TOP = {
   SEARCH: 0,
-  ALBUMS: 1,
-  FAVORITES: 2,
-  VIDEOS: 3,
-  NEW_ALBUM: 4,
-  RECENT_START: 5,
+  HOME: 1,
+  ALBUMS: 2,
+  FAVORITES: 3,
+  VIDEOS: 4,
+  NEW_ALBUM: 5,
+  RECENT_START: 6,
 } as const;
 
 export function settingsIndex(recentVisible: number): number {
@@ -66,6 +67,7 @@ export function TopBar({
 
   const isActiveView = (index: number): boolean => {
     switch (index) {
+      case TOP.HOME: return view.kind === 'timeline';
       case TOP.ALBUMS: return view.kind === 'albums';
       case TOP.VIDEOS: return view.kind === 'videos';
       case TOP.NEW_ALBUM: return view.kind === 'newAlbum';
@@ -98,6 +100,7 @@ export function TopBar({
   return (
     <div className="topbar">
       {button(TOP.SEARCH, t.search, IconSearch)}
+      {button(TOP.HOME, t.home, IconHome)}
       {button(TOP.ALBUMS, t.albums, IconAlbum)}
       {button(TOP.FAVORITES, t.favorites, IconHeart)}
       {button(TOP.VIDEOS, t.videos, IconVideo)}

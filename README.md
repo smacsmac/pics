@@ -38,7 +38,8 @@ avec la même interface, tactile en prime.
 
 | Geste | Manette | Clavier | Souris |
 |---|---|---|---|
-| Parcourir la barre du haut | stick gauche ← →, LT / RT, croix directionnelle | ← → | survol |
+| Parcourir la barre du haut | stick gauche ← →, croix directionnelle | ← → | survol |
+| Revenir à la barre du haut depuis n'importe où | **LT / RT** | — | — |
 | Descendre dans la page | stick gauche ↓ | ↓ | molette |
 | Sélectionner / ouvrir | **A** | Entrée | clic |
 | Retour | **B** | Échap | — |
@@ -49,8 +50,19 @@ avec la même interface, tactile en prime.
 | Menu contextuel | — | — | clic droit |
 
 Les deux barres verticales n'apparaissent que lorsque leur bouton est
-surligné : **Chercher** à gauche, **Paramètres** à droite. Par défaut, ↑ et ↓
-font défiler la chronologie principale.
+surligné : **Chercher** à gauche, **Paramètres** à droite. Leur emplacement
+reste réservé en permanence, pour que la grille de photos ne se décale jamais
+quand une barre s'ouvre ou se ferme. Par défaut, ↑ et ↓ font défiler la
+chronologie principale.
+
+**LT et RT sont réservées à la barre du haut.** Où que vous soyez — dans les
+filtres, dans les réglages, dans la grille — elles font passer au bouton
+précédent ou suivant, et referment au passage la barre latérale ouverte. La
+croix directionnelle et le stick, eux, restent locaux : à l'intérieur d'une
+barre, ← et → passent d'un champ à l'autre, par exemple de `[avr.]` à `[2018]`.
+
+Tout est aussi cliquable à la souris, y compris à l'intérieur des barres :
+les pastilles de date, les cases de volume, les teintes, les drapeaux.
 
 Sur une photo surlignée, les trois actions forment un cercle qui reprend la
 disposition de la manette : **Y** en haut, **X** à gauche, **A** en bas.
@@ -68,6 +80,7 @@ navigateur la voit via XInput. Deux détails à connaître —
 
 ## Ce que fait chaque bouton du haut
 
+* **Accueil** — la chronologie complète, le point de départ.
 * **Chercher** — filtre la chronologie par période (`de` mois/année `à`
   mois/année, bornes incluses), par lieu et par tags. Sur `[Jan]` ou `[2026]` :
   LB/RB pour avancer d'un cran, **A** pour ouvrir le carrousel complet.
@@ -80,6 +93,21 @@ navigateur la voit via XInput. Deux détails à connaître —
   faire défiler les suivants.
 * **Paramètres** — taille du texte, volume, thème, admin, dossiers, langue.
 
+## Deux dispositions
+
+À côté du titre, deux petits boutons changent la façon dont les photos sont
+posées :
+
+* **Une ligne par jour** — chaque journée commence sur sa propre ligne, avec sa
+  date en tête. Lisible, mais une journée de trois photos laisse le reste de la
+  ligne vide.
+* **Condensée** — les journées se suivent en largeur, plusieurs par ligne. Une
+  journée n'est jamais coupée en deux : si elle ne tient pas dans la place
+  restante, elle bascule entière à la ligne suivante. (Une journée plus large
+  qu'une ligne complète se replie sur plusieurs lignes, forcément.)
+
+Le choix est retenu et s'applique partout : chronologie, album, vidéos.
+
 ## Albums
 
 Créez, renommez, changez la couleur ou la musique, choisissez la photo de
@@ -88,6 +116,15 @@ supprimez l'album — les photos, elles, restent dans la bibliothèque.
 
 La couleur de l'album remplace la couleur globale tant qu'on est dedans : le
 liseré néon des photos et les boutons prennent sa teinte.
+
+### Arrière-plan d'album
+
+Ajoutez d'abord un dossier de type *images d'arrière-plan* dans
+Paramètres → Dossiers. Ses images deviennent alors sélectionnables dans
+**Modifier l'album**, avec une **opacité** réglable en pourcentage juste en
+dessous — un aperçu montre le rendu pendant que vous tapez. Comptez 30 à 50 %
+pour garder assez de contraste sous les photos ; à 100 % l'image passe devant
+tout le reste visuellement et gêne la lecture de la grille.
 
 ## Musique
 

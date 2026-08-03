@@ -7,6 +7,7 @@ import { useEffect } from 'react';
  */
 export type Action =
   | 'up' | 'down' | 'left' | 'right'
+  | 'tabPrev' | 'tabNext' // LT / RT : la barre du haut, depuis n'importe où
   | 'confirm'   // A · Entrée · clic
   | 'back'      // B · Échap
   | 'actionX'   // X
@@ -80,8 +81,10 @@ const BUTTON_ACTIONS: Array<[number, Action]> = [
   [PAD.Y, 'actionY'],
   [PAD.LB, 'dec'],
   [PAD.RB, 'inc'],
-  [PAD.LT, 'left'],   // les gâchettes parcourent la barre du haut
-  [PAD.RT, 'right'],
+  // Les gâchettes sont réservées à la barre du haut : elles y ramènent depuis
+  // n'importe quel endroit, alors que la croix et le stick restent locaux.
+  [PAD.LT, 'tabPrev'],
+  [PAD.RT, 'tabNext'],
   [PAD.BACK, 'selectMode'],
   [PAD.START, 'start'],
   [PAD.DUP, 'up'],
@@ -187,7 +190,8 @@ export function startInput(): void {
         // Seules les directions se répètent quand on les maintient.
         const repeatable =
           action === 'up' || action === 'down' || action === 'left' || action === 'right' ||
-          action === 'dec' || action === 'inc';
+          action === 'dec' || action === 'inc' ||
+          action === 'tabPrev' || action === 'tabNext';
         edge(`b${index}`, pressed, action, repeatable);
       }
 

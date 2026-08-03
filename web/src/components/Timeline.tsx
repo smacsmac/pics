@@ -4,7 +4,7 @@ import { api } from '../lib/api';
 import { groupByDay, type Feed } from '../lib/feed';
 import { formatDuration } from '../lib/format';
 import { buildCells, TILE_WIDTHS } from '../lib/grid';
-import { formatDayHeading, formatMonthLabel } from '../lib/i18n';
+import { formatDayHeading, formatMonthLabel, formatShortDay } from '../lib/i18n';
 import { useStore } from '../lib/store';
 import { IconCheck, IconExpand, IconHeart, IconHide, IconPlay, IconPlus, IconTag } from './Icons';
 
@@ -77,6 +77,70 @@ export function Timeline({ feed, inAlbum, onAction, onColumns, scrollRef }: Prop
     );
   }
 
+  const tile = (item: MediaItem, index: number): React.JSX.Element => (
+    <Tile
+      key={item.id}
+      item={item}
+      flat={index}
+      focused={focusIndex === index}
+      picked={selection.includes(item.id)}
+      selectMode={selectMode}
+      inAlbum={inAlbum}
+      onFocus={() => setNav((n) => ({ ...n, zone: 'content', contentIndex: index }))}
+      onPrimary={() => {
+        if (selectMode) toggleSelection(item.id);
+        else onAction(item, 'open');
+      }}
+      onAdd={() => onAction(item, 'add')}
+      onRemove={() => onAction(item, 'remove')}
+    />
+  );
+
+  const footer = (
+    <>
+      {feed.loading && <div className="mini" style={{ padding: '12px 2px' }}>{t.loading}</div>}
+      {cells.length > 0 && !feed.hasMore && (
+        <div className="mini" style={{ padding: '8px 2px' }}>{t.photoCount(feed.total)}</div>
+      )}
+    </>
+  );
+
+  // Vue condensée : chaque journée est un bloc insécable posé dans un flux qui
+  // passe à la ligne. Une journée trop large pour la ligne restante bascule
+  // entière à la suivante, au lieu d'être coupée en deux.
+  if (settings.layout === 'compact') {
+    let running = 0;
+    return (
+      <div ref={gridRef}>
+        <div className="compact-flow">
+          {sections.map((section) => {
+            const start = running;
+            running += section.items.length;
+            const perRow = Math.max(1, Math.min(section.items.length, cols));
+            const width = perRow * tileWidth + (perRow - 1) * 6;
+            const holdsFocus = focusIndex >= start && focusIndex < running;
+            return (
+              <section
+                key={section.day}
+                className={`compact-day${holdsFocus ? ' current' : ''}`}
+                style={{ width }}
+              >
+                <span className="lab">{formatShortDay(section.day, settings.lang)}</span>
+                <div
+                  className="compact-grid"
+                  style={{ gridTemplateColumns: `repeat(${perRow}, ${tileWidth}px)` }}
+                >
+                  {section.items.map((item, i) => tile(item, start + i))}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+        {footer}
+      </div>
+    );
+  }
+
   let flat = 0;
   return (
     <div ref={gridRef}>
@@ -98,37 +162,12 @@ export function Timeline({ feed, inAlbum, onAction, onColumns, scrollRef }: Prop
               className="grid"
               style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
             >
-              {section.items.map((item, i) => {
-                const index = start + i;
-                return (
-                  <Tile
-                    key={item.id}
-                    item={item}
-                    flat={index}
-                    focused={focusIndex === index}
-                    picked={selection.includes(item.id)}
-                    selectMode={selectMode}
-                    inAlbum={inAlbum}
-                    onFocus={() => setNav((n) => ({ ...n, zone: 'content', contentIndex: index }))}
-                    onPrimary={() => {
-                      if (selectMode) toggleSelection(item.id);
-                      else onAction(item, 'open');
-                    }}
-                    onAdd={() => onAction(item, 'add')}
-                    onRemove={() => onAction(item, 'remove')}
-                  />
-                );
-              })}
+              {section.items.map((item, i) => tile(item, start + i))}
             </div>
           </section>
         );
       })}
-      {feed.loading && <div className="mini" style={{ padding: '12px 2px' }}>{t.loading}</div>}
-      {cells.length > 0 && !feed.hasMore && (
-        <div className="mini" style={{ padding: '8px 2px' }}>
-          {t.photoCount(feed.total)}
-        </div>
-      )}
+      {footer}
     </div>
   );
 }

@@ -124,6 +124,36 @@ export const IconSelect = (p: P) => (
   <Svg {...p}><rect x="4.4" y="4.4" width="15.2" height="15.2" rx="3" {...S} strokeDasharray="3 3" /><path d="m8.4 12 2.6 2.6 4.6-5" {...S} /></Svg>
 );
 
+export const IconHome = (p: P) => (
+  <Svg {...p}><path d="M4.2 10.6 12 4.4l7.8 6.2v8a1 1 0 0 1-1 1h-4.2v-5.2H9.4V19.6H5.2a1 1 0 0 1-1-1z" {...S} /></Svg>
+);
+
+/** Chronologie groupée : une bande par journée. */
+export const IconRows = (p: P) => (
+  <Svg {...p}>
+    <path d="M4 5.4h9M4 12h16M4 18.6h13" {...S} />
+    <rect x="4" y="8.2" width="16" height="1.6" rx="0.8" fill="currentColor" opacity="0.45" />
+  </Svg>
+);
+
+/** Vue condensée : les journées se suivent en largeur. */
+export const IconCompact = (p: P) => (
+  <Svg {...p}>
+    <rect x="3.6" y="4.6" width="6" height="6" rx="1.2" {...S} />
+    <rect x="11.4" y="4.6" width="9" height="6" rx="1.2" {...S} />
+    <rect x="3.6" y="13.4" width="9" height="6" rx="1.2" {...S} />
+    <rect x="14.4" y="13.4" width="6" height="6" rx="1.2" {...S} />
+  </Svg>
+);
+
+export const IconImage = (p: P) => (
+  <Svg {...p}>
+    <rect x="3.6" y="5.4" width="16.8" height="13.2" rx="2.2" {...S} />
+    <path d="M3.6 15.4l4.4-4 3.4 3 3.2-2.6 5.8 5" {...S} />
+    <circle cx="8.6" cy="9.6" r="1.3" {...S} />
+  </Svg>
+);
+
 export const IconGamepad = (p: P) => (
   <Svg {...p}>
     <path d="M7.6 8.4h8.8a4.4 4.4 0 0 1 4.3 3.5l.7 3.6a2.3 2.3 0 0 1-4.2 1.7l-1.3-2H8.1l-1.3 2a2.3 2.3 0 0 1-4.2-1.7l.7-3.6a4.4 4.4 0 0 1 4.3-3.5Z" {...S} />
