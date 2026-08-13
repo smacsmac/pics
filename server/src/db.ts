@@ -87,6 +87,17 @@ CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+-- Registre des fichiers déjà reçus. Il n'est jamais purgé : c'est ce qui
+-- empêche une photo supprimée sur le PC de remonter depuis le téléphone.
+CREATE TABLE IF NOT EXISTS imported (
+  hash        TEXT PRIMARY KEY,
+  filename    TEXT NOT NULL,
+  bytes       INTEGER NOT NULL,
+  stored_at   TEXT,
+  imported_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_imported_name ON imported(filename, bytes);
 `);
 
 /**

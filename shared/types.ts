@@ -49,13 +49,21 @@ export interface Settings {
   showHidden: boolean;
   /** « day » groupe par journée ; « compact » enchaîne les journées en largeur. */
   layout: 'day' | 'compact';
+  /** Si vrai, seul un admin déverrouillé peut envoyer des photos. */
+  uploadRequiresAdmin: boolean;
 }
 
 export interface Root {
   id: number;
   path: string;
-  kind: 'photos' | 'music' | 'ui';
+  /** « import » reçoit les envois et sert de boîte de dépôt ; il est aussi scanné. */
+  kind: 'photos' | 'music' | 'ui' | 'import';
   exists: boolean;
+}
+
+export interface UploadResult {
+  name: string;
+  outcome: 'stored' | 'duplicate' | 'rejected';
 }
 
 export interface ScanStatus {

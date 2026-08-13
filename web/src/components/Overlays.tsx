@@ -354,7 +354,7 @@ export function AdminSheet(): React.JSX.Element | null {
 }
 
 export function FoldersSheet(): React.JSX.Element | null {
-  const { sheet, setSheet, state, refresh, t, toast, setOsk } = useStore();
+  const { sheet, setSheet, state, settings, patchSettings, refresh, t, toast, setOsk } = useStore();
   const [path, setPath] = useState('');
   const [kind, setKind] = useState<Root['kind']>('photos');
   const [error, setError] = useState<string | null>(null);
@@ -396,8 +396,9 @@ export function FoldersSheet(): React.JSX.Element | null {
   const roots = state?.roots ?? [];
   const groups: Array<{ kind: Root['kind']; label: string }> = [
     { kind: 'photos', label: t.photoFolders },
+    { kind: 'import', label: t.receiveFolder },
     { kind: 'music', label: t.musicFolder },
-    { kind: 'ui', label: t.uiFolder },
+    { kind: 'ui', label: t.backgroundFolder },
   ];
 
   return (
@@ -456,7 +457,16 @@ export function FoldersSheet(): React.JSX.Element | null {
           />
           {error && <div className="mini" style={{ color: '#ff9aad' }}>{error}</div>}
           {kind === 'music' && <div className="mini">{t.musicHint}</div>}
+          {kind === 'import' && <div className="mini">{t.uploadHint}</div>}
         </div>
+
+        <button
+          className="option"
+          onClick={() => patchSettings({ uploadRequiresAdmin: !settings.uploadRequiresAdmin })}
+        >
+          <span className="n">{t.uploadOpen}</span>
+          <span className="c">{settings.uploadRequiresAdmin ? '○' : '●'}</span>
+        </button>
 
         <div className="form-actions">
           <button

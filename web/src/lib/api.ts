@@ -1,5 +1,5 @@
 import type {
-  Album, AppState, HistogramBucket, MediaItem, MediaPage, MediaQuery, Root, Settings,
+  Album, AppState, HistogramBucket, MediaItem, MediaPage, MediaQuery, Root, Settings, UploadResult,
 } from '../../../shared/types';
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -79,6 +79,60 @@ export const api = {
   ) => request<Album>(`/api/albums/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
 
   backgroundUrl: (name: string) => `/api/background?name=${encodeURIComponent(name)}`,
+
+  /** Demande au serveur lesquels de ces fichiers il connaît déjà. */
+  uploadCheck: (files: Array<{ name: string; size: number }>) =>
+    request<{ known: boolean[]; ready: boolean }>('/api/upload/check', {
+      method: 'POST',
+      body: JSON.stringify({ files }),
+    }),
+
+  drainInbox: () =>
+    request<{ results: UploadResult[] }>('/api/inbox/drain', { method: 'POST' }),
+
+  /**
+   * Envoie un fichier. On passe par XMLHttpRequest et non fetch : c'est le seul
+   * moyen d'obtenir la progression de l'envoi, indispensable quand on transfère
+   * cinquante photos depuis un téléphone.
+   */
+  uploadFile(
+    file: File,
+    onProgress: (ratio: number) => void,
+    signal?: AbortSignal,
+  ): Promise<UploadResult> {
+    return new Promise((resolve, reject) => {
+      const form = new FormData();
+      form.append('file', file, file.name);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `/api/upload?mtime=${file.lastModified || Date.now()}`);
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress(e.loaded / e.total);
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const body = JSON.parse(xhr.responseText) as { results: UploadResult[] };
+            resolve(body.results[0] ?? { name: file.name, outcome: 'rejected' });
+          } catch {
+            reject(new ApiError('bad_response', xhr.status));
+          }
+        } else {
+          let code = `http_${xhr.status}`;
+          try {
+            code = (JSON.parse(xhr.responseText) as { error?: string }).error ?? code;
+          } catch {
+            /* corps non JSON */
+          }
+          reject(new ApiError(code, xhr.status));
+        }
+      };
+      xhr.onerror = () => reject(new ApiError('network', 0));
+      xhr.onabort = () => reject(new ApiError('aborted', 0));
+      signal?.addEventListener('abort', () => xhr.abort(), { once: true });
+      xhr.send(form);
+    });
+  },
 
   deleteAlbum: (id: number) => request<{ deleted: number }>(`/api/albums/${id}`, { method: 'DELETE' }),
 

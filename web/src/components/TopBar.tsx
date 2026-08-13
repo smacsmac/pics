@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { Album } from '../../../shared/types';
 import { useStore } from '../lib/store';
 import {
-  IconAlbum, IconGear, IconHeart, IconHome, IconPlus, IconSearch, IconVideo,
+  IconAlbum, IconGear, IconHeart, IconHome, IconPlus, IconSearch, IconUpload, IconVideo,
 } from './Icons';
 
 /**
@@ -17,7 +17,8 @@ export const TOP = {
   FAVORITES: 3,
   VIDEOS: 4,
   NEW_ALBUM: 5,
-  RECENT_START: 6,
+  UPLOAD: 6,
+  RECENT_START: 7,
 } as const;
 
 export function settingsIndex(recentVisible: number): number {
@@ -56,8 +57,12 @@ export function TopBar({
     const el = recentsRef.current;
     if (!el) return;
     const measure = (): void => {
-      const slots = Math.floor((el.clientWidth + 10) / CHIP_WIDTH);
-      onSlotsMeasured(Math.max(1, Math.min(MAX_RECENT_SLOTS, slots)));
+      // Largeur nulle = zone masquée (téléphone) : aucune tuile, sinon l'index
+      // de la roue dentée compterait des boutons qui ne sont pas affichés.
+      const slots = el.clientWidth < CHIP_WIDTH * 0.7
+        ? 0
+        : Math.floor((el.clientWidth + 10) / CHIP_WIDTH);
+      onSlotsMeasured(Math.max(0, Math.min(MAX_RECENT_SLOTS, slots)));
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -105,6 +110,7 @@ export function TopBar({
       {button(TOP.FAVORITES, t.favorites, IconHeart)}
       {button(TOP.VIDEOS, t.videos, IconVideo)}
       {button(TOP.NEW_ALBUM, t.newAlbum, IconPlus)}
+      {button(TOP.UPLOAD, t.upload, IconUpload)}
 
       <div
         className="recents"

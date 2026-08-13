@@ -1,7 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { pipeline } from 'node:stream/promises';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import type { Album, AppState, Root } from '../../shared/types.js';
+import type { Album, AppState, Root, UploadResult } from '../../shared/types.js';
+import {
+  drainInbox, ensureTempDir, fileIntoLibrary, importRoot, isKnownNameSize, safeName, TEMP_DIR,
+} from './import.js';
 import { ADMIN_COOKIE, createSession, destroySession, isAdmin, isPasswordSet, requireAdmin, setPassword, verifyPassword } from './auth.js';
 import { db, FAVORITES_ID, pruneOrphanTags, tagId } from './db.js';
 import {
@@ -183,7 +187,8 @@ async function sendFile(req: FastifyRequest, reply: FastifyReply, file: string):
   return reply.header('content-length', stat.size).send(fs.createReadStream(file));
 }
 
-export function registerRoutes(app: FastifyInstance): void {
+/** Appelé quand la liste des dossiers change, pour resynchroniser la surveillance. */
+export function registerRoutes(app: FastifyInstance, onRootsChanged: () => void = () => {}): void {
   // ---------------------------------------------------------------- état global
 
   app.get('/api/state', async (req): Promise<AppState> => {
@@ -515,6 +520,7 @@ export function registerRoutes(app: FastifyInstance): void {
     // Un seul dossier musique et un seul dossier d'images d'interface.
     if (kind !== 'photos') db.prepare(`DELETE FROM roots WHERE kind = ?`).run(kind);
     db.prepare(`INSERT OR IGNORE INTO roots (path, kind) VALUES (?, ?)`).run(target, kind);
+    onRootsChanged();
     return rootRows();
   });
 
@@ -524,6 +530,7 @@ export function registerRoutes(app: FastifyInstance): void {
     db.prepare(`DELETE FROM roots WHERE id = ?`).run(id);
     // Les médias de ce dossier sortent des vues sans qu'on touche aux fichiers.
     db.prepare(`UPDATE media SET missing = 1 WHERE root_id = ?`).run(id);
+    onRootsChanged();
     return rootRows();
   });
 
@@ -569,6 +576,59 @@ export function registerRoutes(app: FastifyInstance): void {
   });
 
   // ------------------------------------------------------------------ musique
+
+  // ------------------------------------------------------- envoi de photos
+
+  /**
+   * Pré-vérification : le téléphone annonce ce qu'il s'apprête à envoyer, le
+   * serveur répond ce qu'il connaît déjà. Ça permet de sélectionner « toutes
+   * les photos » à chaque fois sans retransférer la bibliothèque entière.
+   */
+  app.post('/api/upload/check', async (req) => {
+    const files = (req.body as { files?: Array<{ name: string; size: number }> }).files ?? [];
+    return {
+      known: files.map((f) => isKnownNameSize(safeName(f.name ?? ''), Number(f.size) || 0)),
+      ready: importRoot() !== null,
+    };
+  });
+
+  app.post('/api/upload', async (req, reply) => {
+    if (getSettings().uploadRequiresAdmin && !requireAdmin(req, reply)) return;
+    if (!importRoot()) return reply.code(400).send({ error: 'no_import_folder' });
+
+    ensureTempDir();
+    const results: UploadResult[] = [];
+
+    for await (const part of req.parts()) {
+      if (part.type !== 'file') continue;
+      const temp = path.join(TEMP_DIR, `${Date.now()}-${Math.random().toString(16).slice(2)}`);
+      // Écriture en flux : une vidéo de 300 Mo ne doit jamais tenir en mémoire.
+      await pipeline(part.file, fs.createWriteStream(temp));
+
+      if (part.file.truncated) {
+        await fs.promises.rm(temp, { force: true });
+        results.push({ name: part.filename ?? '?', outcome: 'rejected' });
+        continue;
+      }
+
+      // La date du fichier arrive en paramètre d'URL : dans un corps multipart
+      // elle devrait précéder le fichier pour être lisible ici, ce qui est
+      // fragile. Elle ne sert que de secours quand l'EXIF manque.
+      const stamp = Number((req.query as { mtime?: string }).mtime);
+      const mtime = Number.isFinite(stamp) && stamp > 0 ? new Date(stamp) : new Date();
+      const result = await fileIntoLibrary(temp, part.filename ?? 'photo', mtime);
+      results.push({ name: result.name, outcome: result.outcome });
+    }
+
+    if (results.some((r) => r.outcome === 'stored')) void scan();
+    return { results };
+  });
+
+  app.post('/api/inbox/drain', async () => {
+    const results = await drainInbox();
+    if (results.some((r) => r.outcome === 'stored')) void scan();
+    return { results };
+  });
 
   app.get('/api/backgrounds', async () => backgroundNames());
 

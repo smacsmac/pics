@@ -279,10 +279,11 @@ export async function scan(): Promise<void> {
   notify();
 
   try {
-    const roots = db.prepare(`SELECT id, path FROM roots WHERE kind = 'photos'`).all() as Array<{
-      id: number;
-      path: string;
-    }>;
+    // Le dossier de réception est aussi une source de photos : ce qu'on y range
+    // doit apparaître dans la bibliothèque sans avoir à l'ajouter deux fois.
+    const roots = db
+      .prepare(`SELECT id, path FROM roots WHERE kind IN ('photos', 'import')`)
+      .all() as Array<{ id: number; path: string }>;
 
     // Tout est présumé disparu ; le parcours remet à 0 ce qu'il retrouve.
     db.prepare(`UPDATE media SET missing = 1`).run();
@@ -308,6 +309,47 @@ export async function scan(): Promise<void> {
   } finally {
     status.running = false;
     notify();
+  }
+}
+
+// ------------------------------------------------------------ surveillance
+
+let watchers: fs.FSWatcher[] = [];
+let watchTimer: NodeJS.Timeout | null = null;
+
+/**
+ * Surveille les dossiers pour que les photos déposées par un autre outil —
+ * une appli de synchronisation, un glisser-déposer, un câble — apparaissent
+ * en quelques secondes sans qu'on relance un scan à la main.
+ *
+ * Le délai avant réaction sert à laisser une copie en cours se terminer, et à
+ * ne pas déclencher cent scans quand cent fichiers arrivent d'un coup.
+ */
+export function restartWatching(onChange: () => void | Promise<void>): void {
+  for (const watcher of watchers) watcher.close();
+  watchers = [];
+
+  const roots = db
+    .prepare(`SELECT path FROM roots WHERE kind IN ('photos', 'import')`)
+    .all() as Array<{ path: string }>;
+
+  for (const root of roots) {
+    if (!fs.existsSync(root.path)) continue;
+    try {
+      const watcher = fs.watch(root.path, { recursive: true }, () => {
+        if (watchTimer) clearTimeout(watchTimer);
+        watchTimer = setTimeout(() => {
+          watchTimer = null;
+          void onChange();
+        }, 3000);
+      });
+      watcher.on('error', () => {});
+      watchers.push(watcher);
+    } catch {
+      // Certains systèmes de fichiers refusent la surveillance récursive
+      // (partages réseau, montages exotiques). Le scan manuel reste possible.
+      console.warn(`[watch] surveillance impossible pour ${root.path}`);
+    }
   }
 }
 

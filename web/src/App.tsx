@@ -11,6 +11,7 @@ import {
   PlacePickerSheet, TagEditorSheet, TagPickerSheet, Toasts, type MenuTarget,
 } from './components/Overlays';
 import { SearchPanel, SettingsPanel, displayMonth } from './components/Panels';
+import { UploadSheet } from './components/Upload';
 import { DateScrubber, Timeline } from './components/Timeline';
 import { TOP, TopBar, settingsIndex, topCount } from './components/TopBar';
 import { Viewer } from './components/Viewer';
@@ -241,6 +242,9 @@ export function App(): React.JSX.Element {
           if (isAdmin) openView({ kind: 'newAlbum' });
           else toast(t.adminOnly);
           break;
+        case TOP.UPLOAD:
+          setSheet({ kind: 'upload' });
+          break;
         default: {
           if (index === gearIndex) {
             setNav((n) => ({ ...n, zone: 'right', topIndex: gearIndex, panelIndex: 0, subIndex: 0 }));
@@ -251,7 +255,8 @@ export function App(): React.JSX.Element {
         }
       }
     },
-    [setNav, openView, favoritesAlbum, isAdmin, recentAlbums, recentOffset, gearIndex, t.adminOnly, toast],
+    [setNav, openView, setSheet, favoritesAlbum, isAdmin, recentAlbums, recentOffset, gearIndex,
+     t.adminOnly, toast],
   );
 
   const submitAlbum = useCallback(async () => {
@@ -1057,6 +1062,7 @@ export function App(): React.JSX.Element {
         />
       )}
 
+      <UploadSheet />
       <MonthPickerSheet />
       <PlacePickerSheet />
       <TagPickerSheet />

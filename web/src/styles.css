@@ -757,6 +757,23 @@ input { background: none; border: none; outline: none; }
 .slot.on { background: var(--accent-soft); color: #08080c; border-color: var(--accent); font-weight: 600; }
 .slot.off { opacity: 0.42; }
 
+.upload-progress { display: flex; flex-direction: column; gap: 7px; }
+
+.upload-progress .bar {
+  height: 6px;
+  border-radius: 4px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.upload-progress .bar > i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--glow);
+  transition: width 0.15s linear;
+}
+
 .bg-row { display: flex; flex-wrap: wrap; gap: 6px; }
 
 .bg-chip {
@@ -958,9 +975,15 @@ input { background: none; border: none; outline: none; }
   z-index: 70;
   background: rgba(3, 3, 7, 0.72);
   backdrop-filter: blur(8px);
+  /* Pistes explicites, comme pour la visionneuse : sans elles, la piste se
+     dimensionne sur son contenu et le « width: 100% » de la fenêtre ne
+     contraint plus rien — un long chemin de fichier la faisait déborder de
+     l'écran sur téléphone. */
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   place-items: center;
-  padding: 24px;
+  padding: 20px;
   animation: fade 0.14s ease;
 }
 
@@ -1174,4 +1197,16 @@ input { background: none; border: none; outline: none; }
   .panel.right { right: var(--edge); }
   .topbtn { max-width: 72px; height: 54px; }
   .scrubber { display: none; }
+}
+
+/* Téléphone : huit boutons ne tiennent pas côte à côte. Les tuiles d'albums
+   récents s'effacent, et les boutons se resserrent. */
+@media (max-width: 560px) {
+  :root { --edge: 10px; }
+  .topbar { gap: 6px; padding: 8px var(--edge); height: auto; }
+  .topbtn { min-width: 34px; max-width: 60px; height: 48px; }
+  .topbtn svg { width: 20px; height: 20px; }
+  .recents { display: none; }
+  .sheet { padding: 16px; border-radius: 14px; }
+  .form-actions { flex-wrap: wrap; }
 }

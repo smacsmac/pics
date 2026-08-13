@@ -4,13 +4,15 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import cookie from '@fastify/cookie';
+import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import Fastify from 'fastify';
 import { db } from './db.js';
 import { preloadGeocoder } from './geocode.js';
+import { drainInbox, ensureTempDir } from './import.js';
 import { ensureDirs, HOST, PORT } from './paths.js';
 import { registerRoutes } from './routes.js';
-import { scan } from './scanner.js';
+import { restartWatching, scan } from './scanner.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const WEB_DIST = path.resolve(here, '../../web/dist');
@@ -53,7 +55,12 @@ async function main(): Promise<void> {
   });
 
   await app.register(cookie);
-  registerRoutes(app);
+  await app.register(multipart, {
+    // Assez large pour une vidéo de téléphone ; le fichier est écrit en flux,
+    // il ne passe jamais entièrement par la mémoire.
+    limits: { fileSize: 4 * 1024 * 1024 * 1024, files: 64, fields: 8 },
+  });
+  registerRoutes(app, () => restartWatching(sweep));
 
   if (fs.existsSync(WEB_DIST)) {
     await app.register(fastifyStatic, { root: WEB_DIST, index: ['index.html'] });
@@ -74,9 +81,9 @@ async function main(): Promise<void> {
 
   await app.listen({ port: PORT, host: HOST });
 
-  const roots = db.prepare(`SELECT COUNT(*) AS n FROM roots WHERE kind = 'photos'`).get() as {
-    n: number;
-  };
+  const roots = db
+    .prepare(`SELECT COUNT(*) AS n FROM roots WHERE kind IN ('photos', 'import')`)
+    .get() as { n: number };
 
   console.log('');
   console.log('  Photon — galerie photo locale');
@@ -93,6 +100,18 @@ async function main(): Promise<void> {
   } else {
     void scan();
   }
+
+  ensureTempDir();
+
+  // Un fichier déposé pendant que le serveur était éteint doit être rangé au
+  // démarrage, pas seulement à la prochaine modification du dossier.
+  const sweep = async (): Promise<void> => {
+    const filed = await drainInbox();
+    if (filed.some((r) => r.outcome === 'stored')) console.log(`  ${filed.length} fichier(s) rangé(s).`);
+    await scan();
+  };
+  void sweep();
+  restartWatching(sweep);
 
   openBrowser(`http://localhost:${PORT}`);
 }

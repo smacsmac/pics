@@ -124,6 +124,13 @@ export const IconSelect = (p: P) => (
   <Svg {...p}><rect x="4.4" y="4.4" width="15.2" height="15.2" rx="3" {...S} strokeDasharray="3 3" /><path d="m8.4 12 2.6 2.6 4.6-5" {...S} /></Svg>
 );
 
+export const IconUpload = (p: P) => (
+  <Svg {...p}>
+    <path d="M12 16.4V4.8M7.8 9l4.2-4.2L16.2 9" {...S} />
+    <path d="M4.6 15.2v2.6a1.8 1.8 0 0 0 1.8 1.8h11.2a1.8 1.8 0 0 0 1.8-1.8v-2.6" {...S} />
+  </Svg>
+);
+
 export const IconHome = (p: P) => (
   <Svg {...p}><path d="M4.2 10.6 12 4.4l7.8 6.2v8a1 1 0 0 1-1 1h-4.2v-5.2H9.4V19.6H5.2a1 1 0 0 1-1-1z" {...S} /></Svg>
 );

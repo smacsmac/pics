@@ -48,7 +48,8 @@ export type Sheet =
   | { kind: 'admin' }
   | { kind: 'monthPicker'; which: 'from' | 'to'; field: 'month' | 'year' }
   | { kind: 'placePicker' }
-  | { kind: 'tagPicker' };
+  | { kind: 'tagPicker' }
+  | { kind: 'upload' };
 
 export interface OskRequest {
   label: string;
@@ -106,7 +107,8 @@ interface Store {
 const StoreContext = createContext<Store | null>(null);
 
 const DEFAULT_SETTINGS: Settings = {
-  fontScale: 2, hue: 285, volume: 3, lang: 'fr', thumbSize: 2, showHidden: false, layout: 'day',
+  fontScale: 2, hue: 285, volume: 3, lang: 'fr', thumbSize: 2, showHidden: false,
+  layout: 'day', uploadRequiresAdmin: false,
 };
 
 const EMPTY_FILTERS: Filters = { from: null, to: null, place: null, tags: [] };

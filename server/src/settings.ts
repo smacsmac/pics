@@ -9,6 +9,9 @@ export const DEFAULT_SETTINGS: Settings = {
   thumbSize: 2,
   showHidden: false,
   layout: 'day',
+  // Ouvert par défaut : l'intérêt est justement que n'importe quel appareil du
+  // Wi-Fi puisse envoyer ses photos sans connaître le mot de passe.
+  uploadRequiresAdmin: false,
 };
 
 function clamp(value: unknown, min: number, max: number, fallback: number): number {
@@ -27,6 +30,7 @@ export function getSettings(): Settings {
     thumbSize: clamp(stored.thumbSize, 0, 4, DEFAULT_SETTINGS.thumbSize),
     showHidden: stored.showHidden === true,
     layout: stored.layout === 'compact' ? 'compact' : 'day',
+    uploadRequiresAdmin: stored.uploadRequiresAdmin === true,
   };
 }
 

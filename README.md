@@ -93,6 +93,48 @@ navigateur la voit via XInput. Deux détails à connaître —
   faire défiler les suivants.
 * **Paramètres** — taille du texte, volume, thème, admin, dossiers, langue.
 
+## Envoyer des photos depuis un téléphone
+
+Ouvrez Photon dans le navigateur du téléphone (l'adresse `192.168.…` affichée au
+démarrage), puis le bouton **Envoyer des photos**. Sélectionnez tout ce que vous
+voulez, même la pellicule entière : ce qui a déjà été reçu est écarté avant tout
+transfert, seules les nouveautés montent.
+
+Les fichiers sont rangés sur le PC par date de prise de vue, dans le **dossier
+de réception** défini dans Paramètres → Dossiers :
+
+```
+Recu\2026\7 - Juil\IMG_0042.jpg
+Recu\2025\12 - Dec\IMG_0007.jpg
+```
+
+L'envoi est ouvert à tout le réseau local par défaut — c'est l'intérêt, que la
+famille puisse envoyer sans mot de passe. Une bascule dans la gestion des
+dossiers permet de le réserver à l'admin.
+
+### Une photo supprimée ne revient jamais
+
+Photon garde l'empreinte de chaque fichier reçu, même après que le fichier a
+disparu du disque. Si vous supprimez une photo sur le PC, elle ne remontera
+plus, quelle que soit le nombre de fois où vous resélectionnez la pellicule. La
+seule façon d'ajouter reste l'envoi ; la seule façon d'enlever reste le PC.
+
+### Boîte de dépôt et synchronisation automatique
+
+Tout fichier déposé **à la racine** du dossier de réception est rangé
+automatiquement dans son mois, en quelques secondes, sans rien lancer. Un câble,
+un glisser-déposer, un partage réseau : ça marche pareil.
+
+C'est aussi ce qui permet une vraie synchronisation automatique, que Photon ne
+peut pas faire lui-même — un site web n'a pas le droit de lire le dossier photos
+d'un téléphone, ni de s'exécuter en arrière-plan la nuit. Installez plutôt
+**Syncthing** (gratuit, sur Android) et faites-lui déposer votre pellicule dans
+le dossier de réception : Photon range et indexe le reste.
+
+L'avantage de passer par la boîte de dépôt plutôt que par un dossier synchronisé
+directement : Photon la vide au fur et à mesure, donc supprimer une photo sur le
+PC ne la fait pas réapparaître au prochain cycle de synchronisation.
+
 ## Deux dispositions
 
 À côté du titre, deux petits boutons changent la façon dont les photos sont
@@ -254,3 +296,9 @@ npm start
 * Les dossiers s'ajoutent en tapant leur chemin : un navigateur ne peut pas
   ouvrir de sélecteur de dossiers système sans y être autorisé fichier par
   fichier.
+* L'envoi depuis un téléphone demande un geste : sélectionner les photos. Aucune
+  application web ne peut lire une pellicule ni tourner en arrière-plan la nuit,
+  sur aucun système. Pour de l'automatique complet, voir Syncthing plus haut.
+* La surveillance des dossiers s'appuie sur le système de fichiers ; certains
+  partages réseau la refusent. Dans ce cas le bouton *Relancer le scan* reste
+  disponible, et le scan de démarrage fait le travail.
