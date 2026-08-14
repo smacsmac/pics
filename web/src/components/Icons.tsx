@@ -124,6 +124,14 @@ export const IconSelect = (p: P) => (
   <Svg {...p}><rect x="4.4" y="4.4" width="15.2" height="15.2" rx="3" {...S} strokeDasharray="3 3" /><path d="m8.4 12 2.6 2.6 4.6-5" {...S} /></Svg>
 );
 
+export const IconZoomIn = (p: P) => (
+  <Svg {...p}><circle cx="10.8" cy="10.8" r="6.4" {...S} /><path d="m15.6 15.6 4.2 4.2M10.8 8.2v5.2M8.2 10.8h5.2" {...S} /></Svg>
+);
+
+export const IconZoomOut = (p: P) => (
+  <Svg {...p}><circle cx="10.8" cy="10.8" r="6.4" {...S} /><path d="m15.6 15.6 4.2 4.2M8.2 10.8h5.2" {...S} /></Svg>
+);
+
 export const IconUpload = (p: P) => (
   <Svg {...p}>
     <path d="M12 16.4V4.8M7.8 9l4.2-4.2L16.2 9" {...S} />

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Album, MediaItem } from '../../shared/types';
 import {
-  AlbumForm, AlbumMusic, AlbumsGrid, ALBUM_FIELDS, clampPercent, type AlbumDraft,
+  AlbumForm, AlbumMusic, AlbumsGrid, albumFields, clampPercent, type AlbumDraft,
 } from './components/Albums';
 import {
-  IconCompact, IconGamepad, IconPencil, IconRows, IconSelect, IconX,
+  IconCompact, IconGamepad, IconPencil, IconRows, IconSelect, IconX, IconZoomIn, IconZoomOut,
 } from './components/Icons';
 import {
   AddToAlbumSheet, AdminSheet, ContextMenu, FoldersSheet, MonthPickerSheet, Osk,
@@ -42,6 +42,7 @@ export function App(): React.JSX.Element {
 
   const isMediaView = view.kind === 'timeline' || view.kind === 'videos' || view.kind === 'album';
   const isForm = view.kind === 'newAlbum' || view.kind === 'editAlbum';
+  const formFields = albumFields(view.kind === 'editAlbum');
 
   const feed = useMediaFeed(query, isMediaView);
   const buckets = useHistogram(query, isMediaView);
@@ -60,7 +61,7 @@ export function App(): React.JSX.Element {
   const [pad, setPad] = useState<PadStatus>({ connected: false, id: null });
   const [draft, setDraft] = useState<AlbumDraft>({
     name: '', color: 285, musicSlot: null, videoMusicPct: 20,
-    background: null, backgroundOpacity: 35, tags: [],
+    background: null, backgroundOpacity: 35, coverMediaId: null, tags: [],
   });
 
   // Nombre de tuiles d'albums récents réellement à l'écran : ce que la largeur
@@ -130,13 +131,14 @@ export function App(): React.JSX.Element {
         videoMusicPct: currentAlbum.videoMusicPct,
         background: currentAlbum.background,
         backgroundOpacity: currentAlbum.backgroundOpacity,
+        coverMediaId: currentAlbum.coverMediaId,
         tags: currentAlbum.tags,
       });
     }
     if (view.kind === 'newAlbum') {
       setDraft({
         name: '', color: settings.hue, musicSlot: null, videoMusicPct: 20,
-        background: null, backgroundOpacity: 35, tags: [],
+        background: null, backgroundOpacity: 35, coverMediaId: null, tags: [],
       });
     }
   }, [view, currentAlbum, settings.hue]);
@@ -148,7 +150,7 @@ export function App(): React.JSX.Element {
     : view.kind === 'albums'
       ? albums.length
       : isForm
-        ? ALBUM_FIELDS.length
+        ? formFields.length
         : 0;
 
   const focusedItem: MediaItem | undefined = isMediaView ? feed.items[nav.contentIndex] : undefined;
@@ -444,6 +446,15 @@ export function App(): React.JSX.Element {
           case 'actionX':
             void doRemoveOrHide(item);
             break;
+          case 'setCover':
+            // LS désigne la photo affichée comme couverture de l'album courant.
+            if (view.kind === 'album' && item && isAdmin) {
+              void api
+                .updateAlbum(view.id, { coverMediaId: item.id })
+                .then(refresh)
+                .then(() => toast(t.coverSet));
+            }
+            break;
           default:
             break;
         }
@@ -632,7 +643,7 @@ export function App(): React.JSX.Element {
       }
 
       if (isForm) {
-        const field = ALBUM_FIELDS[nav.contentIndex];
+        const field = formFields[nav.contentIndex];
         switch (action) {
           case 'up':
             if (nav.contentIndex === 0) setNav((n) => ({ ...n, zone: 'top', topIndex: TOP.NEW_ALBUM }));
@@ -641,7 +652,7 @@ export function App(): React.JSX.Element {
           case 'down':
             setNav((n) => ({
               ...n,
-              contentIndex: Math.min(ALBUM_FIELDS.length - 1, n.contentIndex + 1),
+              contentIndex: Math.min(formFields.length - 1, n.contentIndex + 1),
             }));
             break;
           case 'left':
@@ -722,7 +733,8 @@ export function App(): React.JSX.Element {
       recentVisible, gearIndex, bumpLeftRow,
       bumpRightRow, confirmLeftRow, confirmRightRow, isMediaView, sections, cols, focusedItem,
       toggleSelection, openViewer, doAddToAlbum, doRemoveOrHide, view, albums, albumCols, openView,
-      isForm, draft, setOsk, submitAlbum, settings.thumbSize, patchSettings, back, t, toast,
+      isForm, draft, setOsk, submitAlbum, settings.thumbSize, patchSettings, back, refresh,
+      formFields, t, toast,
     ],
   );
 
@@ -832,6 +844,27 @@ export function App(): React.JSX.Element {
               {isMediaView && (
                 <div className="head-toggle">
                   <button
+                    title={t.zoomOut}
+                    aria-label={t.zoomOut}
+                    disabled={settings.thumbSize === 0}
+                    onClick={() => patchSettings({ thumbSize: Math.max(0, settings.thumbSize - 1) })}
+                  >
+                    <IconZoomOut />
+                  </button>
+                  <button
+                    title={t.zoomIn}
+                    aria-label={t.zoomIn}
+                    disabled={settings.thumbSize === TILE_WIDTHS.length - 1}
+                    onClick={() =>
+                      patchSettings({
+                        thumbSize: Math.min(TILE_WIDTHS.length - 1, settings.thumbSize + 1),
+                      })
+                    }
+                  >
+                    <IconZoomIn />
+                  </button>
+                  <span className="head-sep" />
+                  <button
                     className={settings.layout === 'day' ? 'on' : ''}
                     title={t.layoutDay}
                     aria-label={t.layoutDay}
@@ -899,6 +932,7 @@ export function App(): React.JSX.Element {
                 title={view.kind === 'newAlbum' ? t.newAlbum : t.editAlbum}
                 draft={draft}
                 setDraft={setDraft}
+                albumId={view.kind === 'editAlbum' ? view.id : undefined}
                 submitLabel={view.kind === 'newAlbum' ? t.create : t.save}
                 onSubmit={() => void submitAlbum()}
                 onCancel={back}

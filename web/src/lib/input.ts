@@ -15,6 +15,7 @@ export type Action =
   | 'dec'       // LB
   | 'inc'       // RB
   | 'selectMode' // Back/Select · Alt+S
+  | 'setCover'   // clic du stick gauche (LS)
   | 'start';
 
 type Handler = (action: Action) => boolean | void;
@@ -71,6 +72,7 @@ const PAD = {
   A: 0, B: 1, X: 2, Y: 3,
   LB: 4, RB: 5, LT: 6, RT: 7,
   BACK: 8, START: 9,
+  L3: 10, R3: 11,
   DUP: 12, DDOWN: 13, DLEFT: 14, DRIGHT: 15,
 } as const;
 
@@ -86,6 +88,7 @@ const BUTTON_ACTIONS: Array<[number, Action]> = [
   [PAD.LT, 'tabPrev'],
   [PAD.RT, 'tabNext'],
   [PAD.BACK, 'selectMode'],
+  [PAD.L3, 'setCover'],
   [PAD.START, 'start'],
   [PAD.DUP, 'up'],
   [PAD.DDOWN, 'down'],

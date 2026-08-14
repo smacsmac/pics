@@ -47,6 +47,7 @@ avec la même interface, tactile en prime.
 | Cacher (ou retirer de l'album) | **X** | — | bouton ⦰ sur la photo |
 | Plus / moins (mois, volume, thème, taille des vignettes) | **LB** / **RB** | `[` `]` ou `-` `=` | clic |
 | Mode sélection multiple | bouton **Back** | **Alt+S** | clic droit → Sélection |
+| Définir la photo affichée comme couverture | **LS** (clic du stick gauche) | — | Modifier l'album → couverture |
 | Menu contextuel | — | — | clic droit |
 
 Les deux barres verticales n'apparaissent que lorsque leur bouton est
@@ -150,11 +151,17 @@ posées :
 
 Le choix est retenu et s'applique partout : chronologie, album, vidéos.
 
+À gauche de ces deux boutons, **−** et **+** changent la taille des vignettes.
+LB et RB font la même chose à la manette, depuis la grille.
+
 ## Albums
 
-Créez, renommez, changez la couleur ou la musique, choisissez la photo de
-couverture (clic droit sur une photo dans l'album → *Définir comme couverture*),
-supprimez l'album — les photos, elles, restent dans la bibliothèque.
+Créez, renommez, changez la couleur ou la musique, supprimez l'album — les
+photos, elles, restent dans la bibliothèque.
+
+Pour la **photo de couverture**, trois chemins : la bande de vignettes dans
+*Modifier l'album*, le clic droit sur une photo de l'album → *Définir comme
+couverture*, ou **LS** pendant qu'on la regarde en plein écran.
 
 La couleur de l'album remplace la couleur globale tant qu'on est dedans : le
 liseré néon des photos et les boutons prennent sa teinte.

@@ -1,15 +1,26 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Album } from '../../../shared/types';
+import type { Album, MediaItem } from '../../../shared/types';
 import { api } from '../lib/api';
 import { HUES, VOLUME_MAX } from '../lib/panels';
 import { useStore } from '../lib/store';
 import { IconAlbum, IconPencil, IconTrash, IconX } from './Icons';
 
 /** Champs traversables d'un formulaire d'album (nav.contentIndex les indexe). */
-export const ALBUM_FIELDS = [
-  'name', 'color', 'music', 'videoMusic', 'background', 'backgroundOpacity', 'tags', 'submit',
-] as const;
-export type AlbumField = (typeof ALBUM_FIELDS)[number];
+export type AlbumField =
+  | 'name' | 'cover' | 'color' | 'music' | 'videoMusic'
+  | 'background' | 'backgroundOpacity' | 'tags' | 'submit';
+
+/**
+ * La couverture ne se choisit que sur un album existant, puisqu'il faut ses
+ * photos pour en désigner une. Le champ disparaît donc à la création plutôt que
+ * de rester là, vide et inatteignable.
+ */
+export function albumFields(editing: boolean): AlbumField[] {
+  const fields: AlbumField[] = ['name'];
+  if (editing) fields.push('cover');
+  fields.push('color', 'music', 'videoMusic', 'background', 'backgroundOpacity', 'tags', 'submit');
+  return fields;
+}
 
 export function AlbumsGrid({
   albums,
@@ -78,6 +89,7 @@ export interface AlbumDraft {
   videoMusicPct: number;
   background: string | null;
   backgroundOpacity: number;
+  coverMediaId: number | null;
   tags: string[];
 }
 
@@ -99,6 +111,7 @@ export function AlbumForm({
   onCancel,
   onDelete,
   submitLabel,
+  albumId,
 }: {
   title: string;
   draft: AlbumDraft;
@@ -107,9 +120,27 @@ export function AlbumForm({
   onCancel: () => void;
   onDelete?: () => void;
   submitLabel: string;
+  /** Défini en modification : sert à charger les photos pour la couverture. */
+  albumId?: number;
 }): React.JSX.Element {
   const { nav, state, t, setOsk } = useStore();
-  const field = ALBUM_FIELDS[nav.zone === 'content' ? nav.contentIndex : -1];
+  const fields = albumFields(albumId !== undefined);
+  const field = fields[nav.zone === 'content' ? nav.contentIndex : -1];
+  const [covers, setCovers] = useState<MediaItem[]>([]);
+
+  useEffect(() => {
+    if (albumId === undefined) return;
+    let alive = true;
+    void api
+      .media({ album: albumId, limit: 120 })
+      .then((page) => {
+        if (alive) setCovers(page.items.filter((i) => i.kind === 'photo'));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [albumId]);
   const slots = state?.musicSlots ?? [];
   const backgrounds = state?.backgrounds ?? [];
   const [tagInput, setTagInput] = useState('');
@@ -134,6 +165,27 @@ export function AlbumForm({
           onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
         />
       </div>
+
+      {albumId !== undefined && (
+        <div className={`field${field === 'cover' ? ' on' : ''}`}>
+          <span className="lab">{t.coverField}</span>
+          {covers.length === 0 ? (
+            <span className="mini">{t.coverAfterCreate}</span>
+          ) : (
+            <div className="cover-row">
+              {covers.map((item) => (
+                <button
+                  key={item.id}
+                  className={`cover-chip${draft.coverMediaId === item.id ? ' on' : ''}`}
+                  style={{ backgroundImage: `url(${api.thumbUrl(item.id, 240)})` }}
+                  title={item.filename}
+                  onClick={() => setDraft((d) => ({ ...d, coverMediaId: item.id }))}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className={`field${field === 'color' ? ' on' : ''}`}>
         <span className="lab">{t.color}</span>

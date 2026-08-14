@@ -22,6 +22,15 @@ const EMPTY: Progress = {
 };
 
 /**
+ * « preparing » couvre le moment entre la fermeture du sélecteur de photos et
+ * le premier octet envoyé : le temps d'interroger le serveur sur ce qu'il
+ * connaît déjà. Sur une sélection de plusieurs centaines de photos ce délai se
+ * voit, et sans rien à l'écran on croit que l'appui sur « Terminé » n'a pas
+ * marché — on quitte, et tout le travail est perdu.
+ */
+type Phase = 'idle' | 'preparing' | 'sending';
+
+/**
  * Envoi de photos depuis n'importe quel appareil du réseau local.
  *
  * Le navigateur ne donne accès à la pellicule que via un sélecteur, et
@@ -35,9 +44,11 @@ export function UploadSheet(): React.JSX.Element | null {
   const open = sheet?.kind === 'upload';
   const inputRef = useRef<HTMLInputElement | null>(null);
   const abort = useRef<AbortController | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [phase, setPhase] = useState<Phase>('idle');
+  const [picked, setPicked] = useState(0);
   const [progress, setProgress] = useState<Progress>(EMPTY);
   const [summary, setSummary] = useState<Progress | null>(null);
+  const busy = phase !== 'idle';
 
   const hasFolder = (state?.roots ?? []).some((r) => r.kind === 'import');
   const importRoot = (state?.roots ?? []).find((r) => r.kind === 'import');
@@ -46,14 +57,26 @@ export function UploadSheet(): React.JSX.Element | null {
     if (open) {
       setProgress(EMPTY);
       setSummary(null);
+      setPhase('idle');
+      setPicked(0);
     }
   }, [open]);
 
+  // Fermer l'onglet en plein envoi perd tout ce qui n'est pas encore parti.
+  useEffect(() => {
+    if (!busy) return;
+    const warn = (e: BeforeUnloadEvent): void => e.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [busy]);
+
   const send = useCallback(
     async (files: File[]) => {
-      if (files.length === 0) return;
+      if (files.length === 0) {
+        setPhase('idle');
+        return;
+      }
       setSummary(null);
-      setBusy(true);
       abort.current = new AbortController();
 
       // On demande d'abord ce que le serveur connaît déjà : inutile de faire
@@ -74,6 +97,7 @@ export function UploadSheet(): React.JSX.Element | null {
         bytesTotal: todo.reduce((sum, f) => sum + f.size, 0),
       };
       setProgress(run);
+      setPhase('sending');
 
       for (const file of todo) {
         if (abort.current?.signal.aborted) break;
@@ -101,7 +125,7 @@ export function UploadSheet(): React.JSX.Element | null {
         setProgress({ ...run });
       }
 
-      setBusy(false);
+      setPhase('idle');
       setSummary({ ...run, currentName: '' });
       abort.current = null;
       await refresh();
@@ -161,11 +185,25 @@ export function UploadSheet(): React.JSX.Element | null {
               onChange={(e) => {
                 const files = Array.from(e.target.files ?? []);
                 e.target.value = '';
+                // Affiché avant tout travail : l'utilisateur doit voir que son
+                // « Terminé » a été pris en compte, sans attendre le réseau.
+                setPicked(files.length);
+                setPhase(files.length > 0 ? 'preparing' : 'idle');
                 void send(files);
               }}
             />
 
-            {busy && (
+            {phase === 'preparing' && (
+              <div className="upload-progress">
+                <div className="prep">
+                  <span className="spin" />
+                  <span>{t.uploadPreparing(picked)}</span>
+                </div>
+                <div className="mini">{t.uploadStay}</div>
+              </div>
+            )}
+
+            {phase === 'sending' && (
               <div className="upload-progress">
                 <div className="mini">
                   {progress.done + progress.skipped + progress.failed + 1} / {progress.total}
@@ -179,6 +217,7 @@ export function UploadSheet(): React.JSX.Element | null {
                   {formatBytes(progress.bytesSent)} / {formatBytes(progress.bytesTotal)}
                   {overall > 0 && ` · ${Math.round(overall * 100)} %`}
                 </div>
+                <div className="mini">{t.uploadStay}</div>
               </div>
             )}
 
