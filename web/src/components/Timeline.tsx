@@ -3,7 +3,7 @@ import type { MediaItem } from '../../../shared/types';
 import { api } from '../lib/api';
 import { groupByDay, type Feed } from '../lib/feed';
 import { formatDuration } from '../lib/format';
-import { buildCells, TILE_WIDTHS } from '../lib/grid';
+import { buildCells, effectiveTile, TILE_WIDTHS } from '../lib/grid';
 import { formatDayHeading, formatMonthLabel, formatShortDay } from '../lib/i18n';
 import { useStore } from '../lib/store';
 import { IconCheck, IconExpand, IconHeart, IconHide, IconPlay, IconPlus, IconTag } from './Icons';
@@ -16,17 +16,20 @@ interface Props {
   feed: Feed;
   /** Vrai dans un album : X retire de l'album au lieu de cacher la photo. */
   inAlbum: boolean;
+  /** Cran de zoom de l'écran courant, mémorisé séparément par vue. */
+  zoom: number;
   onAction: TileAction;
   onColumns: (cols: number) => void;
   scrollRef: React.RefObject<HTMLDivElement | null>;
 }
 
-export function Timeline({ feed, inAlbum, onAction, onColumns, scrollRef }: Props): React.JSX.Element {
+export function Timeline({ feed, inAlbum, zoom, onAction, onColumns, scrollRef }: Props): React.JSX.Element {
   const { nav, settings, selectMode, selection, setNav, toggleSelection, t } = useStore();
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [cols, setCols] = useState(6);
 
-  const tileWidth = TILE_WIDTHS[settings.thumbSize] ?? TILE_WIDTHS[2];
+  const base = TILE_WIDTHS[zoom] ?? TILE_WIDTHS[2];
+  const [tileWidth, setTileWidth] = useState(base);
   const sections = useMemo(() => groupByDay(feed.items), [feed.items]);
   const cells = useMemo(() => buildCells(sections, cols), [sections, cols]);
 
@@ -37,7 +40,9 @@ export function Timeline({ feed, inAlbum, onAction, onColumns, scrollRef }: Prop
     if (!el) return;
     const measure = (): void => {
       const width = el.clientWidth;
-      const next = Math.max(1, Math.floor((width + 6) / (tileWidth + 6)));
+      const tile = effectiveTile(base, width);
+      const next = Math.max(1, Math.floor((width + 6) / (tile + 6)));
+      setTileWidth(tile);
       setCols(next);
       onColumns(next);
     };
@@ -45,7 +50,7 @@ export function Timeline({ feed, inAlbum, onAction, onColumns, scrollRef }: Prop
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [tileWidth, onColumns]);
+  }, [base, onColumns]);
 
   // Charge la suite quand le bas approche.
   useEffect(() => {
@@ -81,6 +86,7 @@ export function Timeline({ feed, inAlbum, onAction, onColumns, scrollRef }: Prop
     <Tile
       key={item.id}
       item={item}
+      zoom={zoom}
       flat={index}
       focused={focusIndex === index}
       picked={selection.includes(item.id)}
@@ -174,6 +180,7 @@ export function Timeline({ feed, inAlbum, onAction, onColumns, scrollRef }: Prop
 
 interface TileProps {
   item: MediaItem;
+  zoom: number;
   flat: number;
   focused: boolean;
   picked: boolean;
@@ -186,11 +193,11 @@ interface TileProps {
 }
 
 function Tile({
-  item, flat, focused, picked, selectMode, inAlbum, onFocus, onPrimary, onAdd, onRemove,
+  item, zoom, flat, focused, picked, selectMode, inAlbum, onFocus, onPrimary, onAdd, onRemove,
 }: TileProps): React.JSX.Element {
-  const { settings, t } = useStore();
+  const { t } = useStore();
   const [broken, setBroken] = useState(false);
-  const size = settings.thumbSize >= 3 ? 480 : 240;
+  const size = zoom >= 3 ? 480 : 240;
 
   return (
     <div

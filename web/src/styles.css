@@ -83,21 +83,12 @@ input { background: none; border: none; outline: none; }
 
 .shell {
   flex: 1;
+  position: relative;
   display: flex;
-  gap: var(--gap);
   /* La marge latérale laisse respirer les halos néon : sans elle, la lueur des
-     tuiles de bord et des boutons est coupée net par le bord de l'écran. */
+     tuiles de bord et des boutons est coupée net par le bord de l’écran. */
   padding: 0 var(--edge) var(--edge);
   min-height: 0;
-}
-
-/* Les deux gouttières existent en permanence, vides quand leur barre est
-   fermée : la grille de photos ne doit jamais se décaler quand une barre
-   s'ouvre ou se ferme. */
-.gutter {
-  width: var(--panel-w);
-  flex: 0 0 auto;
-  min-width: 0;
 }
 
 /* ------------------------------------------------------------------- topbar */
@@ -204,11 +195,18 @@ input { background: none; border: none; outline: none; }
 
 /* -------------------------------------------------------------- panneaux */
 
+/* Les barres passent par-dessus la grille au lieu de lui prendre de la place :
+   les photos occupent toute la largeur et ne bougent jamais, qu'une barre soit
+   ouverte ou non. */
 .panel {
-  width: 100%;
-  height: 100%;
-  background: color-mix(in oklab, var(--surface) 88%, transparent);
-  backdrop-filter: blur(14px);
+  position: absolute;
+  top: 0;
+  bottom: var(--edge);
+  left: var(--edge);
+  width: var(--panel-w);
+  z-index: 20;
+  background: color-mix(in oklab, var(--surface) 96%, transparent);
+  backdrop-filter: blur(18px);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 10px;
@@ -216,10 +214,15 @@ input { background: none; border: none; outline: none; }
   flex-direction: column;
   gap: 8px;
   overflow-y: auto;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6);
   animation: slide-in 0.18s ease;
 }
 
-.panel.right { animation: slide-in-right 0.18s ease; }
+.panel.right {
+  left: auto;
+  right: var(--edge);
+  animation: slide-in-right 0.18s ease;
+}
 
 @keyframes slide-in {
   from { opacity: 0; transform: translateX(-12px); }
@@ -499,10 +502,16 @@ input { background: none; border: none; outline: none; }
 .head-sep { width: 1px; background: var(--line); margin: 2px 4px; }
 .head-toggle button:hover { color: var(--text); border-color: var(--accent-deep); }
 
+/* « active » = réglage en vigueur ; « on » = position du curseur manette. */
+.head-toggle button.active {
+  color: var(--accent-ink);
+  border-color: var(--accent-deep);
+}
+
 .head-toggle button.on {
   color: var(--accent-ink);
   border-color: var(--accent);
-  box-shadow: 0 0 12px var(--glow-soft);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 14px var(--glow);
 }
 
 /* ------------------------------------------------------------------ tuiles */
@@ -650,7 +659,8 @@ input { background: none; border: none; outline: none; }
 
 .albums-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  /* Largeur pilotée par le zoom de cet écran, resserrée sur petit écran. */
+  grid-template-columns: repeat(auto-fill, minmax(var(--album-card-w, 196px), 1fr));
   gap: 14px;
 }
 
@@ -1233,31 +1243,28 @@ input { background: none; border: none; outline: none; }
   .pill { font-size: 0.78em; padding: 5px 6px; }
 }
 
-/* Sur écran étroit, réserver deux gouttières coûterait toute la place : les
-   barres repassent en surcouche au-dessus de la grille. */
 @media (max-width: 900px) {
   :root { --edge: 12px; }
-  .gutter { width: 0; }
-  .panel {
-    position: absolute;
-    top: var(--topbar-h);
-    bottom: 0;
-    width: var(--panel-w);
-    z-index: 20;
-  }
-  .panel.right { right: var(--edge); }
   .topbtn { max-width: 72px; height: 54px; }
   .scrubber { display: none; }
+  /* Le curseur de dates est masqué ici : sa réserve de 92 px amputerait la
+     largeur utile sans rien afficher. */
+  .stage-scroll.with-scrubber { padding-right: 22px; }
 }
 
 /* Téléphone : huit boutons ne tiennent pas côte à côte. Les tuiles d'albums
    récents s'effacent, et les boutons se resserrent. */
 @media (max-width: 560px) {
-  :root { --edge: 10px; }
-  .topbar { gap: 6px; padding: 8px var(--edge); height: auto; }
+  :root { --edge: 8px; }
+  .topbar { gap: 6px; padding: 8px var(--edge) 22px; height: auto; }
   .topbtn { min-width: 34px; max-width: 60px; height: 48px; }
   .topbtn svg { width: 20px; height: 20px; }
   .recents { display: none; }
   .sheet { padding: 16px; border-radius: 14px; }
   .form-actions { flex-wrap: wrap; }
+  /* Chaque pixel compte pour caser une colonne de plus. */
+  .stage-scroll,
+  .stage-scroll.with-scrubber { padding: 12px 10px 60px; }
+  .stage-head { padding: 10px 10px 4px; }
+  .panel { width: min(var(--panel-w), calc(100vw - 2 * var(--edge))); }
 }

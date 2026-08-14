@@ -3,6 +3,27 @@ import type { DaySection } from './feed';
 /** Largeur de tuile visée pour chaque cran de zoom (LB/RB dans la grille). */
 export const TILE_WIDTHS = [88, 118, 156, 208, 272];
 
+/** Même échelle pour les cartes de la grille d'albums, qui zoome séparément. */
+export const ALBUM_CARD_WIDTHS = [128, 158, 196, 248, 320];
+
+export const ZOOM_MAX = TILE_WIDTHS.length - 1;
+
+/**
+ * Sur un écran de téléphone, l'échelle du bureau ne laisserait tenir que deux
+ * colonnes alors que la place existe pour trois ou quatre. On resserre donc
+ * toute l'échelle proportionnellement, ce qui garde le zoom utile : chaque cran
+ * fait toujours varier la taille, simplement à partir d'une base plus petite.
+ */
+export function scaleForWidth(containerWidth: number): number {
+  if (containerWidth >= 560) return 1;
+  if (containerWidth >= 420) return 0.76;
+  return 0.66;
+}
+
+export function effectiveTile(base: number, containerWidth: number): number {
+  return Math.max(58, Math.round(base * scaleForWidth(containerWidth)));
+}
+
 export interface Cell {
   flat: number;
   section: number;

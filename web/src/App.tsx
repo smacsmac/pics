@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Album, MediaItem } from '../../shared/types';
+import type { Album, MediaItem, ZoomKey } from '../../shared/types';
 import {
   AlbumForm, AlbumMusic, AlbumsGrid, albumFields, clampPercent, type AlbumDraft,
 } from './components/Albums';
@@ -17,7 +17,10 @@ import { TOP, TopBar, settingsIndex, topCount } from './components/TopBar';
 import { Viewer } from './components/Viewer';
 import { api } from './lib/api';
 import { groupByDay, useHistogram, useMediaFeed } from './lib/feed';
-import { buildCells, moveFocus, spatialMove, TILE_WIDTHS, type Direction } from './lib/grid';
+import {
+  ALBUM_CARD_WIDTHS, buildCells, effectiveTile, moveFocus, spatialMove, ZOOM_MAX,
+  type Direction,
+} from './lib/grid';
 import { LANGS } from './lib/i18n';
 import { onPadStatus, startInput, useInput, type Action, type PadStatus } from './lib/input';
 import { FONT_MAX, HUES, LEFT_ROWS, VOLUME_MAX, rightRows } from './lib/panels';
@@ -44,6 +47,19 @@ export function App(): React.JSX.Element {
   const isForm = view.kind === 'newAlbum' || view.kind === 'editAlbum';
   const formFields = albumFields(view.kind === 'editAlbum');
 
+  // Chaque écran a son propre cran de zoom : agrandir les photos de l'accueil
+  // ne doit pas gonfler les cartes de la grille d'albums.
+  const zoomKey: ZoomKey =
+    view.kind === 'albums' ? 'albums'
+    : view.kind === 'album' ? 'album'
+    : view.kind === 'videos' ? 'videos'
+    : 'timeline';
+  const zoom = settings.zoom[zoomKey] ?? 2;
+  const setZoom = useCallback(
+    (next: number) => patchSettings({ zoom: { [zoomKey]: Math.min(ZOOM_MAX, Math.max(0, next)) } as never }),
+    [patchSettings, zoomKey],
+  );
+
   const feed = useMediaFeed(query, isMediaView);
   const buckets = useHistogram(query, isMediaView);
   const sections = useMemo(() => groupByDay(feed.items), [feed.items]);
@@ -67,6 +83,21 @@ export function App(): React.JSX.Element {
   // Nombre de tuiles d'albums récents réellement à l'écran : ce que la largeur
   // permet, borné par ce qui reste à afficher. Il décale l'index de la roue
   // dentée, donc toute la navigation de la barre du haut en dépend.
+  // Boutons de l'en-tête : zoom seul sur la grille d'albums, zoom + disposition
+  // sur les vues de photos. La navigation manette lit ce même compte.
+  const headCount = isMediaView ? 4 : view.kind === 'albums' ? 2 : 0;
+  const headFocus = nav.zone === 'head' ? Math.min(nav.headIndex, headCount - 1) : -1;
+
+  const pressHead = useCallback(
+    (index: number) => {
+      if (index === 0) setZoom(zoom - 1);
+      else if (index === 1) setZoom(zoom + 1);
+      else if (index === 2) patchSettings({ layout: 'day' });
+      else if (index === 3) patchSettings({ layout: 'compact' });
+    },
+    [setZoom, zoom, patchSettings],
+  );
+
   const recentVisible = Math.max(0, Math.min(recentSlots, recentAlbums.length - recentOffset));
   const gearIndex = settingsIndex(recentVisible);
 
@@ -483,6 +514,9 @@ export function App(): React.JSX.Element {
           case 'down':
             if (nav.topIndex === TOP.SEARCH) setNav((n) => ({ ...n, zone: 'left', panelIndex: 0, subIndex: 0 }));
             else if (nav.topIndex === gearIndex) setNav((n) => ({ ...n, zone: 'right', panelIndex: 0, subIndex: 0 }));
+            // La rangée de boutons de l'en-tête s'intercale entre la barre du
+            // haut et les photos : on y passe avant d'atteindre la grille.
+            else if (headCount > 0) setNav((n) => ({ ...n, zone: 'head', headIndex: 0 }));
             else setNav((n) => ({ ...n, zone: 'content' }));
             break;
           case 'confirm':
@@ -500,6 +534,37 @@ export function App(): React.JSX.Element {
             break;
           case 'back':
             setNav((n) => ({ ...n, zone: 'content' }));
+            break;
+          default:
+            break;
+        }
+        return true;
+      }
+
+      // ---- rangée de boutons de l'en-tête
+      if (nav.zone === 'head') {
+        switch (action) {
+          case 'left':
+            setNav((n) => ({ ...n, headIndex: Math.max(0, n.headIndex - 1) }));
+            break;
+          case 'right':
+            setNav((n) => ({ ...n, headIndex: Math.min(headCount - 1, n.headIndex + 1) }));
+            break;
+          case 'up':
+            setNav((n) => ({ ...n, zone: 'top' }));
+            break;
+          case 'down':
+          case 'back':
+            setNav((n) => ({ ...n, zone: 'content' }));
+            break;
+          case 'confirm':
+            pressHead(headFocus);
+            break;
+          case 'dec':
+            setZoom(zoom - 1);
+            break;
+          case 'inc':
+            setZoom(zoom + 1);
             break;
           default:
             break;
@@ -557,15 +622,9 @@ export function App(): React.JSX.Element {
       // ---- contenu
       switch (action) {
         case 'dec':
-        case 'inc': {
-          if (isForm) break;
-          const next = Math.min(
-            TILE_WIDTHS.length - 1,
-            Math.max(0, settings.thumbSize + (action === 'inc' ? -1 : 1)),
-          );
-          patchSettings({ thumbSize: next });
+        case 'inc':
+          if (!isForm) setZoom(zoom + (action === 'inc' ? -1 : 1));
           break;
-        }
         case 'back':
           if (selectMode) setSelectMode(false);
           else back();
@@ -585,7 +644,7 @@ export function App(): React.JSX.Element {
             const spatial = spatialMove(action, nav.contentIndex);
             const next =
               spatial ?? moveFocus(cells, sections, cols, nav.contentIndex, action as Direction);
-            if (next < 0) setNav((n) => ({ ...n, zone: 'top', topIndex: TOP.HOME }));
+            if (next < 0) setNav((n) => ({ ...n, zone: headCount > 0 ? 'head' : 'top', topIndex: TOP.HOME }));
             else setNav((n) => ({ ...n, contentIndex: next }));
             break;
           }
@@ -623,7 +682,7 @@ export function App(): React.JSX.Element {
           case 'right': move(1); break;
           case 'down': move(albumCols); break;
           case 'up':
-            if (nav.contentIndex < albumCols) setNav((n) => ({ ...n, zone: 'top', topIndex: TOP.ALBUMS }));
+            if (nav.contentIndex < albumCols) setNav((n) => ({ ...n, zone: headCount > 0 ? 'head' : 'top', topIndex: TOP.ALBUMS }));
             else move(-albumCols);
             break;
           case 'confirm': {
@@ -733,7 +792,8 @@ export function App(): React.JSX.Element {
       recentVisible, gearIndex, bumpLeftRow,
       bumpRightRow, confirmLeftRow, confirmRightRow, isMediaView, sections, cols, focusedItem,
       toggleSelection, openViewer, doAddToAlbum, doRemoveOrHide, view, albums, albumCols, openView,
-      isForm, draft, setOsk, submitAlbum, settings.thumbSize, patchSettings, back, refresh,
+      isForm, draft, setOsk, submitAlbum, zoom, setZoom, headCount, headFocus, pressHead,
+      patchSettings, back, refresh,
       formFields, t, toast,
     ],
   );
@@ -800,17 +860,15 @@ export function App(): React.JSX.Element {
       />
 
       <div className="shell">
-        {/* Gouttière toujours présente : la grille ne bouge pas quand la barre
-            s'ouvre ou se ferme. */}
-        <div className="gutter">
-          {showLeft && (
-            <SearchPanel
-              onFocusRow={(row, sub) =>
-                setNav((n) => ({ ...n, zone: 'left', panelIndex: row, subIndex: sub ?? 0 }))
-              }
-            />
-          )}
-        </div>
+        {/* Les barres se posent par-dessus la grille : les photos gardent toute
+            la largeur et ne se décalent jamais. */}
+        {showLeft && (
+          <SearchPanel
+            onFocusRow={(row, sub) =>
+              setNav((n) => ({ ...n, zone: 'left', panelIndex: row, subIndex: sub ?? 0 }))
+            }
+          />
+        )}
 
         <main className="stage">
           {currentAlbum?.background && (
@@ -841,45 +899,47 @@ export function App(): React.JSX.Element {
                 </button>
               )}
 
-              {isMediaView && (
+              {(isMediaView || view.kind === 'albums') && (
                 <div className="head-toggle">
                   <button
+                    className={headFocus === 0 ? 'on' : ''}
                     title={t.zoomOut}
                     aria-label={t.zoomOut}
-                    disabled={settings.thumbSize === 0}
-                    onClick={() => patchSettings({ thumbSize: Math.max(0, settings.thumbSize - 1) })}
+                    disabled={zoom === 0}
+                    onClick={() => setZoom(zoom - 1)}
                   >
                     <IconZoomOut />
                   </button>
                   <button
+                    className={headFocus === 1 ? 'on' : ''}
                     title={t.zoomIn}
                     aria-label={t.zoomIn}
-                    disabled={settings.thumbSize === TILE_WIDTHS.length - 1}
-                    onClick={() =>
-                      patchSettings({
-                        thumbSize: Math.min(TILE_WIDTHS.length - 1, settings.thumbSize + 1),
-                      })
-                    }
+                    disabled={zoom === ZOOM_MAX}
+                    onClick={() => setZoom(zoom + 1)}
                   >
                     <IconZoomIn />
                   </button>
-                  <span className="head-sep" />
-                  <button
-                    className={settings.layout === 'day' ? 'on' : ''}
-                    title={t.layoutDay}
-                    aria-label={t.layoutDay}
-                    onClick={() => patchSettings({ layout: 'day' })}
-                  >
-                    <IconRows />
-                  </button>
-                  <button
-                    className={settings.layout === 'compact' ? 'on' : ''}
-                    title={t.layoutCompact}
-                    aria-label={t.layoutCompact}
-                    onClick={() => patchSettings({ layout: 'compact' })}
-                  >
-                    <IconCompact />
-                  </button>
+                  {isMediaView && (
+                    <>
+                      <span className="head-sep" />
+                      <button
+                        className={`${settings.layout === 'day' ? 'active ' : ''}${headFocus === 2 ? 'on' : ''}`}
+                        title={t.layoutDay}
+                        aria-label={t.layoutDay}
+                        onClick={() => patchSettings({ layout: 'day' })}
+                      >
+                        <IconRows />
+                      </button>
+                      <button
+                        className={`${settings.layout === 'compact' ? 'active ' : ''}${headFocus === 3 ? 'on' : ''}`}
+                        title={t.layoutCompact}
+                        aria-label={t.layoutCompact}
+                        onClick={() => patchSettings({ layout: 'compact' })}
+                      >
+                        <IconCompact />
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
 
@@ -909,6 +969,7 @@ export function App(): React.JSX.Element {
               <Timeline
                 feed={feed}
                 inAlbum={view.kind === 'album'}
+                zoom={zoom}
                 onColumns={setCols}
                 scrollRef={scrollRef}
                 onAction={(item, kind) => {
@@ -923,6 +984,7 @@ export function App(): React.JSX.Element {
             ) : view.kind === 'albums' ? (
               <AlbumsRegion
                 albums={albums}
+                cardWidth={ALBUM_CARD_WIDTHS[zoom] ?? ALBUM_CARD_WIDTHS[2]}
                 onCols={setAlbumCols}
                 onOpen={(album) => openView({ kind: 'album', id: album.id })}
                 onEdit={(album) => openView({ kind: 'editAlbum', id: album.id })}
@@ -995,15 +1057,13 @@ export function App(): React.JSX.Element {
           )}
         </main>
 
-        <div className="gutter">
-          {showRight && (
-            <SettingsPanel
-              onFocusRow={(row, sub) =>
-                setNav((n) => ({ ...n, zone: 'right', panelIndex: row, subIndex: sub ?? 0 }))
-              }
-            />
-          )}
-        </div>
+        {showRight && (
+          <SettingsPanel
+            onFocusRow={(row, sub) =>
+              setNav((n) => ({ ...n, zone: 'right', panelIndex: row, subIndex: sub ?? 0 }))
+            }
+          />
+        )}
       </div>
 
       <div className="status-line">
@@ -1113,11 +1173,13 @@ export function App(): React.JSX.Element {
 /** La grille d'albums mesure ses colonnes pour que ↑/↓ sautent une vraie ligne. */
 function AlbumsRegion({
   albums,
+  cardWidth,
   onCols,
   onOpen,
   onEdit,
 }: {
   albums: Album[];
+  cardWidth: number;
   onCols: (n: number) => void;
   onOpen: (album: Album) => void;
   onEdit: (album: Album) => void;
@@ -1127,12 +1189,17 @@ function AlbumsRegion({
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const measure = (): void => onCols(Math.max(1, Math.floor((el.clientWidth + 14) / 204)));
+    const measure = (): void => {
+      const width = el.clientWidth;
+      const card = effectiveTile(cardWidth, width);
+      el.style.setProperty('--album-card-w', `${card}px`);
+      onCols(Math.max(1, Math.floor((width + 14) / (card + 14))));
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [onCols]);
+  }, [onCols, cardWidth]);
 
   return (
     <div ref={ref}>

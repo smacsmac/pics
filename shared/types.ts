@@ -40,12 +40,19 @@ export interface Album {
   updatedAt: number;
 }
 
+/**
+ * Chaque écran garde son propre niveau de zoom : agrandir les photos de la
+ * chronologie ne doit pas gonfler les tuiles de la grille d'albums.
+ */
+export type ZoomKey = 'timeline' | 'videos' | 'album' | 'albums';
+export type ZoomLevels = Record<ZoomKey, number>;
+
 export interface Settings {
   fontScale: number; // 0..4
   hue: number; // 0..359, la couleur globale « arc-en-ciel néon »
   volume: number; // 0..5
   lang: Lang;
-  thumbSize: number; // 0..4
+  zoom: ZoomLevels; // 0..4 par écran
   showHidden: boolean;
   /** « day » groupe par journée ; « compact » enchaîne les journées en largeur. */
   layout: 'day' | 'compact';

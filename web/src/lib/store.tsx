@@ -14,7 +14,8 @@ export type View =
   | { kind: 'newAlbum' }
   | { kind: 'editAlbum'; id: number };
 
-export type Zone = 'top' | 'left' | 'right' | 'content';
+/** « head » = la rangée de boutons entre le titre et les photos. */
+export type Zone = 'top' | 'head' | 'left' | 'right' | 'content';
 
 export interface MonthValue {
   year: number;
@@ -32,6 +33,7 @@ export interface Nav {
   zone: Zone;
   topIndex: number;
   panelIndex: number;
+  headIndex: number;
   /** Champ courant à l'intérieur d'une rangée : [Jan] et [2026] par exemple. */
   subIndex: number;
   contentIndex: number;
@@ -107,7 +109,8 @@ interface Store {
 const StoreContext = createContext<Store | null>(null);
 
 const DEFAULT_SETTINGS: Settings = {
-  fontScale: 2, hue: 285, volume: 3, lang: 'fr', thumbSize: 2, showHidden: false,
+  fontScale: 2, hue: 285, volume: 3, lang: 'fr', showHidden: false,
+  zoom: { timeline: 2, videos: 2, album: 2, albums: 2 },
   layout: 'day', uploadRequiresAdmin: false,
 };
 
@@ -129,7 +132,7 @@ export function StoreProvider({ children }: { children: ReactNode }): React.JSX.
   const [filters, setFiltersState] = useState<Filters>(EMPTY_FILTERS);
   const [anchor, setAnchor] = useState<number | null>(null);
   const [nav, setNavState] = useState<Nav>({
-    zone: 'content', topIndex: 1, panelIndex: 0, subIndex: 0, contentIndex: 0,
+    zone: 'content', topIndex: 1, panelIndex: 0, headIndex: 0, subIndex: 0, contentIndex: 0,
   });
   const [tagCursor, setTagCursor] = useState(0);
   const [selectMode, setSelectModeState] = useState(false);
@@ -155,7 +158,13 @@ export function StoreProvider({ children }: { children: ReactNode }): React.JSX.
   // arrière-plan : régler le volume ou la teinte ne doit jamais « accrocher ».
   const patchSettings = useCallback((patch: Partial<Settings>) => {
     setSettingsLocal((prev) => {
-      const next = { ...prev, ...patch };
+      // `zoom` se met à jour un écran à la fois : sans fusion explicite, régler
+      // le zoom des albums effacerait celui de la chronologie.
+      const next: Settings = {
+        ...prev,
+        ...patch,
+        zoom: { ...prev.zoom, ...(patch.zoom ?? {}) },
+      };
       void api.saveSettings(patch).catch(() => {});
       return next;
     });

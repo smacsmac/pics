@@ -51,10 +51,10 @@ avec la même interface, tactile en prime.
 | Menu contextuel | — | — | clic droit |
 
 Les deux barres verticales n'apparaissent que lorsque leur bouton est
-surligné : **Chercher** à gauche, **Paramètres** à droite. Leur emplacement
-reste réservé en permanence, pour que la grille de photos ne se décale jamais
-quand une barre s'ouvre ou se ferme. Par défaut, ↑ et ↓ font défiler la
-chronologie principale.
+surligné : **Chercher** à gauche, **Paramètres** à droite. Elles se posent
+**par-dessus** les photos : la grille occupe toute la largeur de l'écran en
+permanence et ne se décale jamais quand une barre s'ouvre ou se ferme. Par
+défaut, ↑ et ↓ font défiler la chronologie principale.
 
 **LT et RT sont réservées à la barre du haut.** Où que vous soyez — dans les
 filtres, dans les réglages, dans la grille — elles font passer au bouton
@@ -153,6 +153,17 @@ Le choix est retenu et s'applique partout : chronologie, album, vidéos.
 
 À gauche de ces deux boutons, **−** et **+** changent la taille des vignettes.
 LB et RB font la même chose à la manette, depuis la grille.
+
+**Chaque écran garde son propre zoom.** Agrandir les photos de l'accueil ne
+touche ni la grille d'albums, ni l'intérieur d'un album, ni les vidéos — chacun
+retient son réglage.
+
+Ces boutons sont atteignables à la manette : depuis la barre du haut, ↓ y passe
+avant d'arriver aux photos ; depuis la grille, ↑ y remonte. ← → circulent entre
+eux, **A** applique.
+
+Sur téléphone, l'échelle se resserre automatiquement : le même cran de zoom
+donne trois colonnes au lieu de deux, sans quoi l'écran serait à moitié vide.
 
 ## Albums
 
