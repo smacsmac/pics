@@ -102,6 +102,8 @@ const en = {
   passwordTooShort: 'At least 4 characters',
   adminOnly: 'Admin only',
   adminUnlocked: 'Admin unlocked',
+  adminLocked: 'Locked',
+  adminUnlockPrompt: 'Unlock admin to change this',
 
   photoFolders: 'Photo folders',
   musicFolder: 'Music folder',
@@ -230,6 +232,8 @@ const fr: Dict = {
   passwordTooShort: 'Au moins 4 caractères',
   adminOnly: 'Réservé à l’admin',
   adminUnlocked: 'Mode admin activé',
+  adminLocked: 'Verrouillé',
+  adminUnlockPrompt: 'Déverrouillez l’admin pour modifier ceci',
 
   photoFolders: 'Dossiers de photos',
   musicFolder: 'Dossier de musique',
@@ -356,6 +360,8 @@ const ko: Dict = {
   passwordTooShort: '4자 이상',
   adminOnly: '관리자 전용',
   adminUnlocked: '관리자 모드',
+  adminLocked: '잠김',
+  adminUnlockPrompt: '변경하려면 관리자 잠금을 해제하세요',
 
   photoFolders: '사진 폴더',
   musicFolder: '음악 폴더',

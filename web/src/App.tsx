@@ -4,7 +4,8 @@ import {
   AlbumForm, AlbumMusic, AlbumsGrid, albumFields, clampPercent, type AlbumDraft,
 } from './components/Albums';
 import {
-  IconCompact, IconGamepad, IconPencil, IconRows, IconSelect, IconX, IconZoomIn, IconZoomOut,
+  IconCompact, IconGamepad, IconKey, IconPencil, IconRows, IconSelect, IconX, IconZoomIn,
+  IconZoomOut,
 } from './components/Icons';
 import {
   AddToAlbumSheet, AdminSheet, ContextMenu, FoldersSheet, MonthPickerSheet, Osk,
@@ -36,6 +37,8 @@ export function App(): React.JSX.Element {
   } = store;
 
   const isAdmin = state?.isAdmin ?? false;
+  /** Un mot de passe existe, mais cette session ne l'a pas encore saisi. */
+  const isLocked = (state?.adminPasswordSet ?? false) && !isAdmin;
   const albums = state?.albums ?? [];
   const favoritesAlbum = albums.find((a) => a.kind === 'favorites');
   const recentAlbums = useMemo(
@@ -186,6 +189,18 @@ export function App(): React.JSX.Element {
 
   const focusedItem: MediaItem | undefined = isMediaView ? feed.items[nav.contentIndex] : undefined;
 
+  /**
+   * Porte d'entrée unique des actions réservées à l'admin. Verrouillé, on ouvre
+   * la demande de mot de passe au lieu de refuser en silence : c'est ce silence
+   * qui donnait l'impression que les boutons avaient disparu.
+   */
+  const requireAdmin = useCallback((): boolean => {
+    if (isAdmin) return true;
+    toast(t.adminUnlockPrompt);
+    setSheet({ kind: 'admin' });
+    return false;
+  }, [isAdmin, setSheet, t.adminUnlockPrompt, toast]);
+
   const targetIds = useCallback(
     (item?: MediaItem): number[] => {
       if (selectMode && selection.length > 0) return selection;
@@ -198,13 +213,10 @@ export function App(): React.JSX.Element {
     (item?: MediaItem) => {
       const ids = targetIds(item);
       if (ids.length === 0) return;
-      if (!isAdmin) {
-        toast(t.adminOnly);
-        return;
-      }
+      if (!requireAdmin()) return;
       setAddToAlbumFor(ids);
     },
-    [targetIds, isAdmin, setAddToAlbumFor, t.adminOnly, toast],
+    [targetIds, requireAdmin, setAddToAlbumFor],
   );
 
   /** X sur une photo : la retirer de l'album courant, ou la cacher ailleurs. */
@@ -212,10 +224,7 @@ export function App(): React.JSX.Element {
     async (item?: MediaItem) => {
       const ids = targetIds(item);
       if (ids.length === 0) return;
-      if (!isAdmin) {
-        toast(t.adminOnly);
-        return;
-      }
+      if (!requireAdmin()) return;
       if (view.kind === 'album') {
         await api.albumMedia(view.id, ids, true);
         feed.dropItems(ids);
@@ -230,21 +239,19 @@ export function App(): React.JSX.Element {
       if (selectMode) setSelection([]);
       await refresh();
     },
-    [targetIds, isAdmin, view, feed, settings.showHidden, selectMode, setSelection, refresh, t, toast],
+    [targetIds, requireAdmin, view, feed, settings.showHidden, selectMode, setSelection, refresh, t, toast],
   );
 
   const toggleFavorite = useCallback(
     async (item: MediaItem) => {
-      if (!favoritesAlbum || !isAdmin) {
-        toast(t.adminOnly);
-        return;
-      }
+      if (!favoritesAlbum) return;
+      if (!requireAdmin()) return;
       const ids = targetIds(item);
       await api.albumMedia(favoritesAlbum.id, ids, item.favorite);
       feed.patchItems(ids, { favorite: !item.favorite });
       await refresh();
     },
-    [favoritesAlbum, isAdmin, targetIds, feed, refresh, t.adminOnly, toast],
+    [favoritesAlbum, requireAdmin, targetIds, feed, refresh],
   );
 
   const openViewer = useCallback((index: number) => {
@@ -272,8 +279,7 @@ export function App(): React.JSX.Element {
           openView({ kind: 'videos' });
           break;
         case TOP.NEW_ALBUM:
-          if (isAdmin) openView({ kind: 'newAlbum' });
-          else toast(t.adminOnly);
+          if (requireAdmin()) openView({ kind: 'newAlbum' });
           break;
         case TOP.UPLOAD:
           setSheet({ kind: 'upload' });
@@ -288,8 +294,7 @@ export function App(): React.JSX.Element {
         }
       }
     },
-    [setNav, openView, setSheet, favoritesAlbum, isAdmin, recentAlbums, recentOffset, gearIndex,
-     t.adminOnly, toast],
+    [setNav, openView, setSheet, favoritesAlbum, requireAdmin, recentAlbums, recentOffset, gearIndex],
   );
 
   const submitAlbum = useCallback(async () => {
@@ -479,7 +484,7 @@ export function App(): React.JSX.Element {
             break;
           case 'setCover':
             // LS désigne la photo affichée comme couverture de l'album courant.
-            if (view.kind === 'album' && item && isAdmin) {
+            if (view.kind === 'album' && item && requireAdmin()) {
               void api
                 .updateAlbum(view.id, { coverMediaId: item.id })
                 .then(refresh)
@@ -890,10 +895,12 @@ export function App(): React.JSX.Element {
                   {filtersActive && ` · ${t.filtered}`}
                 </span>
               )}
-              {currentAlbum && currentAlbum.kind !== 'favorites' && isAdmin && !isForm && (
+              {currentAlbum && currentAlbum.kind !== 'favorites' && !isForm && (
                 <button
                   className="tiny-btn"
-                  onClick={() => openView({ kind: 'editAlbum', id: currentAlbum.id })}
+                  onClick={() => {
+                    if (requireAdmin()) openView({ kind: 'editAlbum', id: currentAlbum.id });
+                  }}
                 >
                   <IconPencil /> {t.editAlbum}
                 </button>
@@ -987,7 +994,9 @@ export function App(): React.JSX.Element {
                 cardWidth={ALBUM_CARD_WIDTHS[zoom] ?? ALBUM_CARD_WIDTHS[2]}
                 onCols={setAlbumCols}
                 onOpen={(album) => openView({ kind: 'album', id: album.id })}
-                onEdit={(album) => openView({ kind: 'editAlbum', id: album.id })}
+                onEdit={(album) => {
+                  if (requireAdmin()) openView({ kind: 'editAlbum', id: album.id });
+                }}
               />
             ) : isForm ? (
               <AlbumForm
@@ -1082,6 +1091,11 @@ export function App(): React.JSX.Element {
             {isAdmin && (state?.counts.hidden ?? 0) > 0 && ` · ${state?.counts.hidden} ${t.hidden}`}
           </span>
         )}
+        {isLocked && (
+          <button className="lock-chip" onClick={() => setSheet({ kind: 'admin' })} title={t.adminUnlockPrompt}>
+            <IconKey /> {t.adminLocked}
+          </button>
+        )}
         <span className="pad-hint">
           {pad.connected && <IconGamepad />}
           {pad.connected ? t.controls : 'Alt+S · ← → ↑ ↓ · Esc'}
@@ -1130,6 +1144,7 @@ export function App(): React.JSX.Element {
             setMenu(null);
           }}
           onEditTags={() => {
+            if (!requireAdmin()) return;
             setTagEditorFor(selectMode && selection.length > 0 ? selection : [menu.mediaId]);
             setMenu(null);
           }}
@@ -1139,7 +1154,7 @@ export function App(): React.JSX.Element {
             setMenu(null);
           }}
           onRemoveFromAlbum={() => {
-            if (menu.inAlbum !== null) {
+            if (menu.inAlbum !== null && requireAdmin()) {
               void api.albumMedia(menu.inAlbum, [menu.mediaId], true).then(() => {
                 feed.dropItems([menu.mediaId]);
                 void refresh();
@@ -1148,7 +1163,7 @@ export function App(): React.JSX.Element {
             setMenu(null);
           }}
           onSetCover={() => {
-            if (menu.inAlbum !== null) {
+            if (menu.inAlbum !== null && requireAdmin()) {
               void api.updateAlbum(menu.inAlbum, { coverMediaId: menu.mediaId }).then(refresh);
             }
             setMenu(null);

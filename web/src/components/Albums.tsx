@@ -31,9 +31,8 @@ export function AlbumsGrid({
   onOpen: (album: Album) => void;
   onEdit: (album: Album) => void;
 }): React.JSX.Element {
-  const { nav, t, state } = useStore();
+  const { nav, t } = useStore();
   const focusIndex = nav.zone === 'content' ? nav.contentIndex : -1;
-  const isAdmin = state?.isAdmin ?? false;
 
   return (
     <div className="albums-grid">
@@ -55,7 +54,9 @@ export function AlbumsGrid({
 
           {album.kind === 'favorites' && <span className="fav-tag">★ {t.favorites}</span>}
 
-          {isAdmin && album.kind !== 'favorites' && (
+          {/* Toujours affiché : verrouillé, le clic propose de déverrouiller
+              plutôt que de faire disparaître le bouton sans explication. */}
+          {album.kind !== 'favorites' && (
             <button
               className="edit-btn"
               title={t.editAlbum}

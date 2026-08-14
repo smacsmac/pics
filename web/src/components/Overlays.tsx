@@ -715,8 +715,7 @@ export function ContextMenu({
   onRemoveFromAlbum: () => void;
   onSetCover: () => void;
 }): React.JSX.Element {
-  const { t, state } = useStore();
-  const isAdmin = state?.isAdmin ?? false;
+  const { t } = useStore();
 
   useEffect(() => {
     const close = (): void => onClose();
@@ -748,27 +747,26 @@ export function ContextMenu({
         <IconSelect /> {t.selectMode}
       </button>
 
-      {isAdmin && (
+      {/* Ces entrées restent visibles même verrouillé : c'est l'action qui
+          propose alors de déverrouiller, plutôt qu'un menu qui rétrécit sans
+          explication. */}
+      <div className="menu-sep" />
+      <button className="menu-item" onClick={onEditTags}>
+        <IconTag /> {t.editTags}
+      </button>
+      {target.inAlbum !== null && (
         <>
-          <div className="menu-sep" />
-          <button className="menu-item" onClick={onEditTags}>
-            <IconTag /> {t.editTags}
+          <button className="menu-item" onClick={onSetCover}>
+            <IconPencil /> {t.setCover}
           </button>
-          {target.inAlbum !== null && (
-            <>
-              <button className="menu-item" onClick={onSetCover}>
-                <IconPencil /> {t.setCover}
-              </button>
-              <button className="menu-item" onClick={onRemoveFromAlbum}>
-                <IconX /> {t.removeFromAlbum}
-              </button>
-            </>
-          )}
-          <button className="menu-item" onClick={onToggleHidden}>
-            <IconHide /> {target.hidden ? t.unhide : t.hide}
+          <button className="menu-item" onClick={onRemoveFromAlbum}>
+            <IconX /> {t.removeFromAlbum}
           </button>
         </>
       )}
+      <button className="menu-item" onClick={onToggleHidden}>
+        <IconHide /> {target.hidden ? t.unhide : t.hide}
+      </button>
     </div>
   );
 }
@@ -781,10 +779,10 @@ const OSK_ROWS: Array<Array<{ key: string; label?: string; span?: number }>> = [
   'asdfghjkl-'.split('').map((key) => ({ key })),
   'zxcvbnm,._'.split('').map((key) => ({ key })),
   [
-    { key: ' shift', label: 'ABC', span: 2 },
+    { key: 'ACTION:shift', label: 'ABC', span: 2 },
     { key: ' ', label: '␣', span: 4 },
-    { key: ' back', label: '⌫', span: 2 },
-    { key: ' done', label: 'OK', span: 2 },
+    { key: 'ACTION:back', label: '⌫', span: 2 },
+    { key: 'ACTION:done', label: 'OK', span: 2 },
   ],
 ];
 
@@ -811,15 +809,15 @@ export function Osk(): React.JSX.Element | null {
 
   const press = useCallback(
     (key: string) => {
-      if (key === ' shift') {
+      if (key === 'ACTION:shift') {
         setShift((s) => !s);
         return;
       }
-      if (key === ' back') {
+      if (key === 'ACTION:back') {
         setValue((v) => v.slice(0, -1));
         return;
       }
-      if (key === ' done') {
+      if (key === 'ACTION:done') {
         osk?.onCommit(value);
         setOsk(null);
         return;

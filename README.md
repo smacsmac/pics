@@ -241,6 +241,12 @@ déverrouillé : cacher une photo, gérer les albums, modifier les tags, configu
 les dossiers. Les autres appareils du Wi-Fi peuvent alors regarder, sans rien
 modifier.
 
+**Quand c'est verrouillé, les boutons ne disparaissent pas** : une pastille
+*Verrouillé* apparaît en bas de l'écran, et cliquer sur une action réservée
+propose la saisie du mot de passe. La session reste déverrouillée 30 jours, par
+navigateur — un autre appareil, ou un navigateur vidé de ses données, redemande
+le mot de passe.
+
 ---
 
 ## Essayer sans ses vraies photos
