@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { MediaItem } from '../../../shared/types';
+import type { MediaItem, PlaybackInfo } from '../../../shared/types';
 import { api } from '../lib/api';
 import { formatBytes } from '../lib/format';
 import { formatDateTime } from '../lib/i18n';
@@ -23,6 +23,7 @@ export function Viewer({
 }): React.JSX.Element {
   const { settings, t } = useStore();
   const [hintVisible, setHintVisible] = useState(true);
+  const [playback, setPlayback] = useState<PlaybackInfo | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
@@ -31,19 +32,50 @@ export function Viewer({
     return () => clearTimeout(timer);
   }, [item.id]);
 
+  /**
+   * Une vidéo du téléphone est souvent en HEVC, que le navigateur ne décode
+   * pas : on demande au serveur par quoi la lire. Tant que la copie H.264 se
+   * prépare, on suit l'avancement plutôt que d'afficher une image figée.
+   */
+  useEffect(() => {
+    setPlayback(null);
+    if (item.kind !== 'video') return;
+    let stop = false;
+    let timer: number | undefined;
+
+    const ask = async (): Promise<void> => {
+      try {
+        const info = await api.playback(item.id);
+        if (stop) return;
+        setPlayback(info);
+        if (info.state === 'working') timer = window.setTimeout(() => void ask(), 1000);
+      } catch {
+        if (!stop) setPlayback({ direct: true, state: 'ready', progress: 1, url: api.fileUrl(item.id), vcodec: null });
+      }
+    };
+    void ask();
+
+    return () => {
+      stop = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [item.id, item.kind]);
+
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
     if (playing) void video.play().catch(() => {});
     else video.pause();
-  }, [playing, item.id]);
+  }, [playing, item.id, playback?.url]);
 
   return (
     <div className="viewer" onClick={onClose}>
       {item.kind === 'video' ? (
         <video
           ref={videoRef}
-          src={api.fileUrl(item.id)}
+          // Sans URL on ne met rien : une balise vidéo pointée sur un fichier
+          // que le navigateur ne sait pas décoder n'affiche qu'une image figée.
+          src={playback?.url ?? undefined}
           poster={api.thumbUrl(item.id, 960)}
           controls={playing}
           playsInline
@@ -67,7 +99,17 @@ export function Viewer({
         </div>
       )}
 
-      {item.kind === 'video' && !playing && (
+      {item.kind === 'video' && playback?.state === 'working' && (
+        <div className="viewer-hint">
+          {t.videoPreparing} {Math.round(playback.progress * 100)} %
+        </div>
+      )}
+
+      {item.kind === 'video' && playback?.state === 'error' && (
+        <div className="viewer-hint">{t.videoUnreadable}</div>
+      )}
+
+      {item.kind === 'video' && !playing && playback?.state === 'ready' && (
         <div className="viewer-hint">{t.play}</div>
       )}
 

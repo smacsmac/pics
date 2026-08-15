@@ -13,6 +13,8 @@ function defaultDataDir(): string {
 
 export const DATA_DIR = defaultDataDir();
 export const THUMB_DIR = path.join(DATA_DIR, 'thumbs');
+/** Copies H.264 des vidéos illisibles par les navigateurs. Les originaux restent où ils sont. */
+export const PROXY_DIR = path.join(DATA_DIR, 'videos-lisibles');
 export const DB_PATH = path.join(DATA_DIR, 'photon.db');
 
 export const PORT = Number(process.env.PHOTON_PORT ?? 7777);
@@ -21,12 +23,18 @@ export const HOST = process.env.PHOTON_HOST ?? '0.0.0.0';
 
 export function ensureDirs(): void {
   fs.mkdirSync(THUMB_DIR, { recursive: true });
+  fs.mkdirSync(PROXY_DIR, { recursive: true });
 }
 
 /** Les vignettes sont réparties en 256 sous-dossiers : Windows rame au-delà de ~10k fichiers par dossier. */
 export function thumbPath(id: number, size: number): string {
   const bucket = (id % 256).toString(16).padStart(2, '0');
   return path.join(THUMB_DIR, bucket, `${id}_${size}.webp`);
+}
+
+export function proxyPath(id: number): string {
+  const bucket = (id % 256).toString(16).padStart(2, '0');
+  return path.join(PROXY_DIR, bucket, `${id}.mp4`);
 }
 
 export const PHOTO_EXT = new Set([

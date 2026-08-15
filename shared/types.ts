@@ -123,3 +123,19 @@ export interface HistogramBucket {
   month: number; // epoch ms du 1er du mois
   count: number;
 }
+
+/**
+ * Comment lire une vidéo donnée. Les téléphones filment souvent en HEVC/H.265,
+ * que les navigateurs ne décodent pas : le serveur en prépare alors une copie
+ * H.264, sans jamais toucher au fichier d'origine.
+ */
+export interface PlaybackInfo {
+  /** Le fichier d'origine passe tel quel dans le navigateur. */
+  direct: boolean;
+  state: 'ready' | 'working' | 'error';
+  /** Avancement de la conversion, de 0 à 1. */
+  progress: number;
+  /** URL à donner à la balise vidéo, une fois prête. */
+  url: string | null;
+  vcodec: string | null;
+}

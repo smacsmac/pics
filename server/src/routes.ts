@@ -15,6 +15,7 @@ import { PORT, thumbPath } from './paths.js';
 import { backfillPlaces, onScanProgress, scan, status as scanStatus } from './scanner.js';
 import { getSettings, saveSettings } from './settings.js';
 import { nearestThumbSize, removeThumbs } from './thumbs.js';
+import { playbackInfo, proxyFile, removeProxy } from './transcode.js';
 
 const MIME: Record<string, string> = {
   '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.jpe': 'image/jpeg', '.png': 'image/png',
@@ -269,6 +270,26 @@ export function registerRoutes(app: FastifyInstance, onRootsChanged: () => void 
       | undefined;
     if (!row) return reply.code(404).send({ error: 'not_found' });
     return sendFile(req, reply, row.path);
+  });
+
+  /**
+   * Comment lire cette vidéo ? Réponse immédiate : soit le fichier d'origine
+   * convient, soit une copie H.264 est prête, soit elle est en préparation et
+   * l'interface affiche l'avancement.
+   */
+  app.get('/api/media/:id/playback', async (req, reply) => {
+    const id = Number((req.params as { id: string }).id);
+    const info = await playbackInfo(id);
+    if (!info) return reply.code(404).send({ error: 'not_found' });
+    return reply.header('cache-control', 'no-store').send(info);
+  });
+
+  /** La copie lisible d'une vidéo. L'original n'est jamais modifié. */
+  app.get('/api/file/:id/proxy', async (req, reply) => {
+    const id = Number((req.params as { id: string }).id);
+    const file = proxyFile(id);
+    if (!file) return reply.code(404).send({ error: 'not_ready' });
+    return sendFile(req, reply, file);
   });
 
   /**
@@ -568,7 +589,10 @@ export function registerRoutes(app: FastifyInstance, onRootsChanged: () => void 
   app.post('/api/media/rebuild-thumbs', async (req, reply) => {
     if (!requireAdmin(req, reply)) return;
     const ids = ((req.body as { ids?: number[] }).ids ?? []).filter((n) => Number.isFinite(n));
-    for (const id of ids) await removeThumbs(id);
+    for (const id of ids) {
+      await removeThumbs(id);
+      await removeProxy(id);
+    }
     const stmt = db.prepare(`UPDATE media SET thumb_state = 'pending' WHERE id = ?`);
     for (const id of ids) stmt.run(id);
     void scan();

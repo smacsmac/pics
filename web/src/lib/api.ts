@@ -1,5 +1,6 @@
 import type {
-  Album, AppState, HistogramBucket, MediaItem, MediaPage, MediaQuery, Root, Settings, UploadResult,
+  Album, AppState, HistogramBucket, MediaItem, MediaPage, MediaQuery, PlaybackInfo, Root, Settings,
+  UploadResult,
 } from '../../../shared/types';
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -162,6 +163,8 @@ export const api = {
   scan: () => request<{ started: boolean }>('/api/scan', { method: 'POST' }),
   backfillPlaces: () =>
     request<{ updated: number }>('/api/scan/backfill-places', { method: 'POST' }),
+
+  playback: (id: number) => request<PlaybackInfo>(`/api/media/${id}/playback`),
 
   thumbUrl: (id: number, size: number) => `/api/thumb/${id}?s=${size}`,
   fileUrl: (id: number) => `/api/file/${id}`,

@@ -224,6 +224,27 @@ la langue choisie. Aucune requête réseau n'est faite.
 la plus peuplée gagne — sinon une photo prise à Vancouver ressortirait au nom du
 quartier voisin.
 
+## Vidéos du téléphone
+
+Les téléphones récents (Pixel, iPhone) filment en **HEVC / H.265**. Les
+navigateurs ne savent pas décoder ce format : on voyait la première image figée
+et on entendait le son, alors que le fichier est parfaitement sain — il s'ouvre
+sans problème dans l'explorateur Windows. Les vidéos venant de Google Photos, en
+H.264, passaient sans rien faire.
+
+Photon prépare donc une **copie lisible en H.264** de ces vidéos-là, à la
+première ouverture. Un message *Préparation de la vidéo… %* suit l'avancement,
+puis la lecture devient normale — et instantanée les fois suivantes.
+
+* Le fichier d'origine n'est **jamais** modifié, déplacé ni remplacé. La copie
+  vit à côté des vignettes, dans `videos-lisibles/` du dossier de données.
+* Les vidéos déjà lisibles (H.264, VP9, AV1 dans un `.mp4`, `.webm`, `.mov`)
+  sont servies telles quelles, sans conversion.
+* Un `.mkv` ou un `.avi` dont les pistes sont déjà bonnes est simplement
+  recopié dans un `.mp4`, sans réencodage : quelques secondes, aucune perte.
+* Une seule conversion à la fois, pour ne pas monopoliser le PC.
+* Ce dossier peut être supprimé sans risque : les copies se refont au besoin.
+
 ## Cacher plutôt que supprimer
 
 Photon ne supprime jamais un fichier. **X** (ou le menu contextuel) *cache* une
@@ -326,3 +347,7 @@ npm start
 * La surveillance des dossiers s'appuie sur le système de fichiers ; certains
   partages réseau la refusent. Dans ce cas le bouton *Relancer le scan* reste
   disponible, et le scan de démarrage fait le travail.
+* La conversion d'une vidéo HEVC prend du temps la première fois : comptez à peu
+  près la durée de la vidéo elle-même pour du 1080p, davantage en 4K. C'est fait
+  une seule fois par vidéo, ensuite la lecture est immédiate. Ces copies
+  occupent de la place — un peu moins que les originaux en général.

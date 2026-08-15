@@ -78,6 +78,10 @@ export interface VideoProbe {
   width: number | null;
   height: number | null;
   createdAt: number | null;
+  /** Codec vidéo tel que ffmpeg le nomme : h264, hevc, vp9, av1… */
+  vcodec: string | null;
+  /** Codec audio, même principe : aac, mp3, opus, pcm_s16le… */
+  acodec: string | null;
 }
 
 /**
@@ -86,7 +90,9 @@ export interface VideoProbe {
  * supplémentaire.
  */
 export async function probeVideo(file: string): Promise<VideoProbe> {
-  const result: VideoProbe = { duration: null, width: null, height: null, createdAt: null };
+  const result: VideoProbe = {
+    duration: null, width: null, height: null, createdAt: null, vcodec: null, acodec: null,
+  };
   const bin = await ffmpeg();
   if (!bin) return result;
   try {
@@ -105,6 +111,11 @@ export async function probeVideo(file: string): Promise<VideoProbe> {
       const t = Date.parse(created[1]);
       if (!Number.isNaN(t)) result.createdAt = t;
     }
+    // « Stream #0:0[0x1](eng): Video: hevc (Main) (hvc1 / 0x31637668), … »
+    const vid = stderr.match(/Stream #\d+:\d+.*?:\s*Video:\s*([a-z0-9_]+)/i);
+    if (vid) result.vcodec = vid[1].toLowerCase();
+    const aud = stderr.match(/Stream #\d+:\d+.*?:\s*Audio:\s*([a-z0-9_]+)/i);
+    if (aud) result.acodec = aud[1].toLowerCase();
   } catch {
     /* pas de ffmpeg : on se contente de la date du fichier */
   }

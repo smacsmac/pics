@@ -28,12 +28,21 @@ export function useMediaFeed(query: MediaQuery, active = true): Feed {
   const [loading, setLoading] = useState(false);
   const [nonce, setNonce] = useState(0);
   const requestId = useRef(0);
+  const shownKey = useRef<string | null>(null);
 
   useEffect(() => {
     if (!active) return;
     const id = ++requestId.current;
     setLoading(true);
-    setItems([]);
+    // Changer de filtre invalide ce qui est à l'écran : on vide tout de suite.
+    // Recharger la *même* requête (fin de scan, retour d'un import) ne l'invalide
+    // pas : on garde les photos affichées jusqu'à l'arrivée des nouvelles. Sans
+    // ça toute l'interface se vide le temps d'un aller-retour — et une photo
+    // ouverte en plein écran disparaissait en laissant voir l'écran du dessous.
+    if (shownKey.current !== key) {
+      setItems([]);
+      shownKey.current = key;
+    }
     setCursor(null);
     setHasMore(true);
 

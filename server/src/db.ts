@@ -119,6 +119,11 @@ addColumnIfMissing('albums', 'video_music_pct', 'INTEGER NOT NULL DEFAULT 20');
 addColumnIfMissing('albums', 'background', 'TEXT');
 addColumnIfMissing('albums', 'background_opacity', 'INTEGER NOT NULL DEFAULT 35');
 
+// Codecs d'une vidéo. NULL = jamais analysée : on le fera à la première
+// lecture, pour ne pas obliger à rescanner toute une bibliothèque existante.
+addColumnIfMissing('media', 'vcodec', 'TEXT');
+addColumnIfMissing('media', 'acodec', 'TEXT');
+
 /** L'album « favoris » est un album normal, simplement épinglé et non supprimable. */
 export function ensureFavoritesAlbum(): number {
   const existing = db.prepare(`SELECT id FROM albums WHERE kind = 'favorites'`).get() as

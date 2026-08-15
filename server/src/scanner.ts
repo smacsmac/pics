@@ -7,6 +7,7 @@ import { db } from './db.js';
 import { reverseGeocode } from './geocode.js';
 import { PHOTO_EXT, SKIP_DIRS, VIDEO_EXT } from './paths.js';
 import { makeThumbs, probeVideo, removeThumbs } from './thumbs.js';
+import { removeProxy } from './transcode.js';
 
 export const status: ScanStatus = {
   running: false,
@@ -94,6 +95,8 @@ interface ExtractedMeta {
   lat: number | null;
   lon: number | null;
   camera: string | null;
+  vcodec: string | null;
+  acodec: string | null;
 }
 
 async function extract(file: string, kind: 'photo' | 'video', mtime: number): Promise<ExtractedMeta> {
@@ -106,6 +109,8 @@ async function extract(file: string, kind: 'photo' | 'video', mtime: number): Pr
     lat: null,
     lon: null,
     camera: null,
+    vcodec: null,
+    acodec: null,
   };
 
   if (kind === 'photo') {
@@ -148,6 +153,8 @@ async function extract(file: string, kind: 'photo' | 'video', mtime: number): Pr
     meta.duration = probe.duration;
     meta.width = probe.width;
     meta.height = probe.height;
+    meta.vcodec = probe.vcodec;
+    meta.acodec = probe.acodec;
     if (probe.createdAt) {
       meta.takenAt = probe.createdAt;
       meta.takenSource = 'exif';
@@ -168,15 +175,16 @@ const selectByPath = db.prepare(`SELECT id, mtime, bytes, thumb_state FROM media
 const insertMedia = db.prepare(`
   INSERT INTO media (path, root_id, filename, kind, ext, bytes, mtime, taken_at, taken_source,
                      width, height, duration, lat, lon, place_city, place_admin, place_country,
-                     camera, thumb_state, missing, added_at)
+                     camera, vcodec, acodec, thumb_state, missing, added_at)
   VALUES (@path, @rootId, @filename, @kind, @ext, @bytes, @mtime, @takenAt, @takenSource,
           @width, @height, @duration, @lat, @lon, @city, @admin, @country,
-          @camera, 'pending', 0, @addedAt)
+          @camera, @vcodec, @acodec, 'pending', 0, @addedAt)
 `);
 const updateMedia = db.prepare(`
   UPDATE media SET bytes = @bytes, mtime = @mtime, taken_at = @takenAt, taken_source = @takenSource,
     width = @width, height = @height, duration = @duration, lat = @lat, lon = @lon,
     place_city = @city, place_admin = @admin, place_country = @country, camera = @camera,
+    vcodec = @vcodec, acodec = @acodec,
     thumb_state = 'pending', missing = 0
   WHERE id = @id
 `);
@@ -227,12 +235,16 @@ async function indexFile(rootId: number, found: WalkResult): Promise<void> {
     admin,
     country,
     camera: meta.camera,
+    vcodec: meta.vcodec,
+    acodec: meta.acodec,
     addedAt: Date.now(),
   };
 
   if (existing) {
     updateMedia.run({ ...row, id: existing.id });
     await removeThumbs(existing.id);
+    // Le fichier a changé : sa copie de lecture ne le représente plus.
+    await removeProxy(existing.id);
   } else {
     insertMedia.run(row);
   }

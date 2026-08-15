@@ -75,6 +75,11 @@ export function App(): React.JSX.Element {
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [viewerPlaying, setViewerPlaying] = useState(false);
   const [viewerInfo, setViewerInfo] = useState(false);
+  // Le flux d'avancement du scan est branché une fois pour toutes ; il lit l'état
+  // du plein écran par référence plutôt que par fermeture, qui serait périmée.
+  const viewerOpenRef = useRef(false);
+  const pendingReload = useRef(false);
+  const lastViewed = useRef<MediaItem | null>(null);
   const [menu, setMenu] = useState<MenuTarget | null>(null);
   const [backdrop, setBackdrop] = useState<string | null>(null);
   const [pad, setPad] = useState<PadStatus>({ connected: false, id: null });
@@ -144,7 +149,13 @@ export function App(): React.JSX.Element {
         const status = JSON.parse(ev.data) as { running: boolean };
         if (wasRunning && !status.running) {
           void refresh();
-          feed.reload();
+          // Une photo est ouverte en plein écran : on ne rebâtit pas la
+          // chronologie sous ses pieds. Les surveillances de dossiers font
+          // finir un scan à n'importe quel moment, et la liste changeait de
+          // longueur pendant qu'on regardait — d'où le clignotement, et
+          // parfois une sortie pure et simple du plein écran.
+          if (viewerOpenRef.current) pendingReload.current = true;
+          else feed.reload();
         }
         wasRunning = status.running;
       } catch {
@@ -259,6 +270,16 @@ export function App(): React.JSX.Element {
     setViewerPlaying(false);
     setViewerInfo(false);
   }, []);
+
+  /** Fermeture du plein écran : c'est là qu'on rattrape un scan mis en attente. */
+  const closeViewer = useCallback(() => {
+    setViewerIndex(null);
+    setViewerPlaying(false);
+    if (pendingReload.current) {
+      pendingReload.current = false;
+      feed.reload();
+    }
+  }, [feed]);
 
   const activateTop = useCallback(
     (index: number) => {
@@ -455,8 +476,7 @@ export function App(): React.JSX.Element {
         const item = feed.items[viewerIndex];
         switch (action) {
           case 'back':
-            setViewerIndex(null);
-            setViewerPlaying(false);
+            closeViewer();
             break;
           case 'left':
           case 'dec':
@@ -796,7 +816,7 @@ export function App(): React.JSX.Element {
       isAdmin, selectMode, setSelectMode, setNav, activateTop, recentAlbums.length,
       recentVisible, gearIndex, bumpLeftRow,
       bumpRightRow, confirmLeftRow, confirmRightRow, isMediaView, sections, cols, focusedItem,
-      toggleSelection, openViewer, doAddToAlbum, doRemoveOrHide, view, albums, albumCols, openView,
+      toggleSelection, openViewer, closeViewer, doAddToAlbum, doRemoveOrHide, view, albums, albumCols, openView,
       isForm, draft, setOsk, submitAlbum, zoom, setZoom, headCount, headFocus, pressHead,
       patchSettings, back, refresh,
       formFields, t, toast,
@@ -830,8 +850,30 @@ export function App(): React.JSX.Element {
 
   const showLeft = nav.zone === 'left' || (nav.zone === 'top' && nav.topIndex === TOP.SEARCH);
   const showRight = nav.zone === 'right' || (nav.zone === 'top' && nav.topIndex === gearIndex);
-  const viewerItem = viewerIndex !== null ? feed.items[viewerIndex] : undefined;
+  // Tant que le plein écran est ouvert, il affiche quelque chose. Si la
+  // chronologie se recharge sous lui, on garde la dernière photo connue plutôt
+  // que de laisser un trou d'un rendu : c'est ce trou qu'on voyait clignoter.
+  const liveItem = viewerIndex !== null ? feed.items[viewerIndex] : undefined;
+  const viewerItem = viewerIndex === null ? undefined : (liveItem ?? lastViewed.current ?? undefined);
   const menuItem = menu ? feed.items.find((i) => i.id === menu.mediaId) : undefined;
+
+  useEffect(() => {
+    if (liveItem) lastViewed.current = liveItem;
+  }, [liveItem]);
+
+  useEffect(() => {
+    viewerOpenRef.current = viewerIndex !== null;
+  }, [viewerIndex]);
+
+  // La liste a bougé (import, masquage, rechargement) : on retrouve la photo
+  // regardée par son identifiant, pour que la flèche suivante reparte d'elle.
+  useEffect(() => {
+    if (viewerIndex === null || liveItem) return;
+    const id = lastViewed.current?.id;
+    if (id === undefined) return;
+    const found = feed.items.findIndex((i) => i.id === id);
+    if (found >= 0 && found !== viewerIndex) setViewerIndex(found);
+  }, [feed.items, liveItem, viewerIndex]);
 
   const stageTitle =
     view.kind === 'albums' ? t.albums
@@ -1116,10 +1158,7 @@ export function App(): React.JSX.Element {
           item={viewerItem}
           playing={viewerPlaying}
           showInfo={viewerInfo}
-          onClose={() => {
-            setViewerIndex(null);
-            setViewerPlaying(false);
-          }}
+          onClose={closeViewer}
         />
       )}
 
