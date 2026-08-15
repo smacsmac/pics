@@ -16,6 +16,9 @@ export type Action =
   | 'inc'       // RB
   | 'selectMode' // Back/Select · Alt+S
   | 'setCover'   // clic du stick gauche (LS)
+  // Stick droit (RS) : vise un mois dans le curseur de dates, sans y aller.
+  // Le déplacement ne se fait qu'une fois A confirmé.
+  | 'scrubPrev' | 'scrubNext'
   | 'start';
 
 type Handler = (action: Action) => boolean | void;
@@ -65,6 +68,9 @@ const KEY_MAP: Record<string, Action> = {
   ']': 'inc',
   '-': 'dec',
   '=': 'inc',
+  // Équivalents clavier du stick droit, pour qui n'a pas de manette.
+  PageUp: 'scrubPrev',
+  PageDown: 'scrubNext',
 };
 
 // Manette Xbox en « standard mapping » (ce que Windows + XInput expose au navigateur).
@@ -194,15 +200,21 @@ export function startInput(): void {
         const repeatable =
           action === 'up' || action === 'down' || action === 'left' || action === 'right' ||
           action === 'dec' || action === 'inc' ||
+          action === 'scrubPrev' || action === 'scrubNext' ||
           action === 'tabPrev' || action === 'tabNext';
         edge(`b${index}`, pressed, action, repeatable);
       }
 
-      const [x = 0, y = 0] = active.axes;
+      // Stick gauche : axes 0/1. Stick droit : axes 2/3 (mapping standard).
+      const [x = 0, y = 0, , ry = 0] = active.axes;
       edge('axL', x < -DEADZONE, 'left', true);
       edge('axR', x > DEADZONE, 'right', true);
       edge('axU', y < -DEADZONE, 'up', true);
       edge('axD', y > DEADZONE, 'down', true);
+
+      // Le stick droit ne fait que viser : il ne déplace jamais la vue tout seul.
+      edge('rsU', ry < -DEADZONE, 'scrubPrev', true);
+      edge('rsD', ry > DEADZONE, 'scrubNext', true);
     } else if (held.size > 0) {
       held.clear();
     }

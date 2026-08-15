@@ -966,6 +966,39 @@ input { background: none; border: none; outline: none; }
 .scrub-mark.on { color: var(--accent-ink); }
 .scrub-mark.on .bar { background: var(--accent); box-shadow: 0 0 8px var(--glow); }
 
+/* Mois visé au stick droit. On grossit par transform et non par font-size :
+   la colonne ne se réorganise pas, les autres repères ne bougent pas d'un pixel. */
+.scrub-mark.aim {
+  color: var(--accent-ink);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transform: scale(1.28);
+  transform-origin: right center;
+  /* Le repère grossi déborde sur les photos : sans cette ombre il deviendrait
+     illisible dès qu'une image claire passe dessous. */
+  text-shadow: 0 1px 3px #000, 0 0 9px #000;
+}
+
+.scrub-mark.aim .bar { background: var(--accent); box-shadow: 0 0 8px var(--glow); }
+
+/* Rappel que rien ne bougera avant d'avoir appuyé sur A. */
+.scrub-mark .aim-key {
+  font-size: 0.82em;
+  font-weight: 700;
+  line-height: 1;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--accent);
+  color: #000;
+  text-decoration: none;
+  pointer-events: none;
+}
+
+/* Estompé au repos, mais pleinement visible dès qu'on vise à la manette :
+   sans souris sur l'écran, il n'y a aucun survol pour le réveiller. */
+.scrubber.aiming { opacity: 1; }
+
 /* ------------------------------------------------------------ visionneuse */
 
 .viewer {

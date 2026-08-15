@@ -290,12 +290,20 @@ function Tile({
   );
 }
 
-/** Curseur de dates latéral : un repère par mois, comme dans Google Photos. */
+/**
+ * Curseur de dates latéral : un repère par mois, comme dans Google Photos.
+ *
+ * `aim` est le mois visé au stick droit. Viser ne déplace rien — c'est A qui
+ * confirme. Le repère visé s'affiche toujours avec son étiquette, même quand la
+ * liste est trop dense pour toutes les montrer.
+ */
 export function DateScrubber({
   buckets,
+  aim,
   onPick,
 }: {
   buckets: Array<{ month: number; count: number }>;
+  aim: number | null;
   onPick: (month: number) => void;
 }): React.JSX.Element | null {
   const { settings, anchor } = useStore();
@@ -304,20 +312,26 @@ export function DateScrubber({
   const max = Math.max(...buckets.map((b) => b.count));
   // Au-delà d'une trentaine de repères on n'étiquette qu'un mois sur n.
   const stride = Math.max(1, Math.ceil(buckets.length / 26));
+  const current = buckets.findIndex((b) => anchor !== null && anchor >= b.month);
 
   return (
-    <div className="scrubber">
+    // Le curseur est estompé au repos ; viser à la manette doit le réveiller,
+    // sinon on ne verrait pas ce qu'on pointe faute de survol à la souris.
+    <div className={`scrubber${aim !== null ? ' aiming' : ''}`}>
       {buckets.map((bucket, i) => {
-        const labelled = i % stride === 0;
+        const aimed = i === aim;
         const on = anchor !== null && anchor >= bucket.month;
         return (
           <button
             key={bucket.month}
-            className={`scrub-mark${on && i === buckets.findIndex((b) => anchor !== null && anchor >= b.month) ? ' on' : ''}`}
+            className={`scrub-mark${on && i === current ? ' on' : ''}${aimed ? ' aim' : ''}`}
             onClick={() => onPick(bucket.month)}
             title={`${formatMonthLabel(bucket.month, settings.lang)} · ${bucket.count}`}
           >
-            {labelled && <span>{formatMonthLabel(bucket.month, settings.lang)}</span>}
+            {(i % stride === 0 || aimed) && (
+              <span>{formatMonthLabel(bucket.month, settings.lang)}</span>
+            )}
+            {aimed && <span className="aim-key">A</span>}
             <span
               className="bar"
               style={{ width: `${8 + (bucket.count / max) * 16}px` }}

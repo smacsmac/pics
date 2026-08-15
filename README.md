@@ -48,6 +48,8 @@ avec la même interface, tactile en prime.
 | Plus / moins (mois, volume, thème, taille des vignettes) | **LB** / **RB** | `[` `]` ou `-` `=` | clic |
 | Mode sélection multiple | bouton **Back** | **Alt+S** | clic droit → Sélection |
 | Définir la photo affichée comme couverture | **LS** (clic du stick gauche) | — | Modifier l'album → couverture |
+| Viser un mois dans le curseur de dates | **stick droit ↑ ↓** | Page préc. / Page suiv. | survol |
+| Aller au mois visé | **A** | Entrée | clic |
 | Menu contextuel | — | — | clic droit |
 
 Les deux barres verticales n'apparaissent que lorsque leur bouton est
@@ -67,6 +69,22 @@ les pastilles de date, les cases de volume, les teintes, les drapeaux.
 
 Sur une photo surlignée, les trois actions forment un cercle qui reprend la
 disposition de la manette : **Y** en haut, **X** à gauche, **A** en bas.
+
+### Le curseur de dates au stick droit
+
+Le curseur des mois, à droite de l'écran, se pilote au **stick droit**. Il
+*vise* seulement : le mois pointé grossit, se souligne et s'accompagne d'une
+pastille **A** — mais la chronologie ne bouge pas d'un pixel tant que vous
+n'avez pas confirmé.
+
+* **stick droit ↑ / ↓** — viser le mois précédent ou suivant ; maintenez pour
+  faire défiler.
+* **A** — y aller pour de bon.
+* **B** — abandonner ; la vue reste exactement où elle était.
+
+Viser réveille le curseur, normalement estompé : sans souris à l'écran, rien
+d'autre ne le ferait apparaître. Le stick gauche continue de parcourir les
+photos, comme avant.
 
 ### La manette
 

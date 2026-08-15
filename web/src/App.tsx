@@ -80,6 +80,9 @@ export function App(): React.JSX.Element {
   const viewerOpenRef = useRef(false);
   const pendingReload = useRef(false);
   const lastViewed = useRef<MediaItem | null>(null);
+  // Mois visé dans le curseur de dates au stick droit. null = on ne vise rien.
+  // Viser ne déplace pas la vue : il faut confirmer avec A.
+  const [scrubAim, setScrubAim] = useState<number | null>(null);
   const [menu, setMenu] = useState<MenuTarget | null>(null);
   const [backdrop, setBackdrop] = useState<string | null>(null);
   const [pad, setPad] = useState<PadStatus>({ connected: false, id: null });
@@ -270,6 +273,17 @@ export function App(): React.JSX.Element {
     setViewerPlaying(false);
     setViewerInfo(false);
   }, []);
+
+  /** Ancre la chronologie sur un mois : à la souris comme à la manette. */
+  const pickMonth = useCallback(
+    (month: number) => {
+      const d = new Date(month);
+      const end = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
+      setAnchor(end.getTime());
+      scrollRef.current?.scrollTo({ top: 0 });
+    },
+    [setAnchor],
+  );
 
   /** Fermeture du plein écran : c'est là qu'on rattrape un scan mis en attente. */
   const closeViewer = useCallback(() => {
@@ -515,6 +529,35 @@ export function App(): React.JSX.Element {
             break;
         }
         return true;
+      }
+
+      // ---- curseur de dates au stick droit
+      // Viser est sans effet sur la vue : rien ne bouge tant que A n'a pas
+      // confirmé. B (ou Échap) abandonne et laisse la chronologie où elle est.
+      const scrubCount = isMediaView ? buckets.length : 0;
+      if (action === 'scrubPrev' || action === 'scrubNext') {
+        if (scrubCount < 2) return true;
+        const delta = action === 'scrubNext' ? 1 : -1;
+        setScrubAim((prev) => {
+          // Premier mouvement : on démarre au mois actuellement affiché.
+          const from =
+            prev ?? Math.max(0, buckets.findIndex((b) => anchor !== null && anchor >= b.month));
+          return Math.min(scrubCount - 1, Math.max(0, from + delta));
+        });
+        return true;
+      }
+
+      if (scrubAim !== null) {
+        if (action === 'confirm') {
+          const bucket = buckets[scrubAim];
+          if (bucket) pickMonth(bucket.month);
+          setScrubAim(null);
+          return true;
+        }
+        if (action === 'back') {
+          setScrubAim(null);
+          return true;
+        }
       }
 
       // ---- mode sélection : Select bascule depuis n'importe où
@@ -817,6 +860,7 @@ export function App(): React.JSX.Element {
       recentVisible, gearIndex, bumpLeftRow,
       bumpRightRow, confirmLeftRow, confirmRightRow, isMediaView, sections, cols, focusedItem,
       toggleSelection, openViewer, closeViewer, doAddToAlbum, doRemoveOrHide, view, albums, albumCols, openView,
+      buckets, anchor, scrubAim, pickMonth,
       isForm, draft, setOsk, submitAlbum, zoom, setZoom, headCount, headFocus, pressHead,
       patchSettings, back, refresh,
       formFields, t, toast,
@@ -864,6 +908,16 @@ export function App(): React.JSX.Element {
   useEffect(() => {
     viewerOpenRef.current = viewerIndex !== null;
   }, [viewerIndex]);
+
+  // Le mois visé n'a plus de sens hors d'une vue de photos, ni derrière le
+  // plein écran, ni si la liste des mois a raccourci entre-temps.
+  useEffect(() => {
+    setScrubAim((prev) => {
+      if (prev === null) return null;
+      if (!isMediaView || viewerIndex !== null) return null;
+      return prev < buckets.length ? prev : null;
+    });
+  }, [isMediaView, viewerIndex, buckets.length]);
 
   // La liste a bougé (import, masquage, rechargement) : on retrouve la photo
   // regardée par son identifiant, pour que la flèche suivante reparte d'elle.
@@ -1065,14 +1119,7 @@ export function App(): React.JSX.Element {
           </div>
 
           {isMediaView && buckets.length > 1 && (
-            <DateScrubber
-              buckets={buckets}
-              onPick={(month) => {
-                const end = new Date(new Date(month).getFullYear(), new Date(month).getMonth() + 1, 0, 23, 59, 59, 999);
-                setAnchor(end.getTime());
-                scrollRef.current?.scrollTo({ top: 0 });
-              }}
-            />
+            <DateScrubber buckets={buckets} aim={scrubAim} onPick={pickMonth} />
           )}
 
           {selectMode && (
