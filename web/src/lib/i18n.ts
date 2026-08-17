@@ -90,6 +90,8 @@ const en = {
   addTag: 'add a tag…',
   selectMode: 'Select',
   selected: (n: number) => `${n} selected`,
+  willJoinAlbum: (n: number) =>
+    `${n} selected item${n === 1 ? '' : 's'} will be added once the album is created`,
   selectAll: 'Select all',
   clearSelection: 'Clear selection',
 
@@ -222,6 +224,10 @@ const fr: Dict = {
   addTag: 'ajouter un tag…',
   selectMode: 'Sélection',
   selected: (n: number) => `${n} sélectionnée${n > 1 ? 's' : ''}`,
+  willJoinAlbum: (n: number) =>
+    n > 1
+      ? `${n} photos sélectionnées seront ajoutées dès la création de l’album`
+      : `1 photo sélectionnée sera ajoutée dès la création de l’album`,
   selectAll: 'Tout sélectionner',
   clearSelection: 'Tout désélectionner',
 
@@ -352,6 +358,7 @@ const ko: Dict = {
   addTag: '태그 추가…',
   selectMode: '선택',
   selected: (n: number) => `${n}개 선택됨`,
+  willJoinAlbum: (n: number) => `앨범을 만들면 선택한 ${n}개 항목이 추가됩니다`,
   selectAll: '모두 선택',
   clearSelection: '선택 해제',
 

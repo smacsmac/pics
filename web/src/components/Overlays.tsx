@@ -492,7 +492,8 @@ export function FoldersSheet(): React.JSX.Element | null {
 // -------------------------------------------------------- ajouter à un album
 
 export function AddToAlbumSheet(): React.JSX.Element | null {
-  const { addToAlbumFor, setAddToAlbumFor, state, refresh, t, toast, openView } = useStore();
+  const { addToAlbumFor, setAddToAlbumFor, setPendingAlbumMedia, state, refresh, t, toast, openView } =
+    useStore();
   const [cursor, setCursor] = useState(0);
   const open = addToAlbumFor !== null && addToAlbumFor.length > 0;
   const albums = state?.albums ?? [];
@@ -501,6 +502,10 @@ export function AddToAlbumSheet(): React.JSX.Element | null {
     async (index: number) => {
       if (!addToAlbumFor) return;
       if (index === albums.length) {
+        // L'album n'existe pas encore : on emporte la sélection avec nous, et
+        // la création s'en occupera. Autrement il fallait tout recommencer une
+        // fois l'album créé.
+        setPendingAlbumMedia(addToAlbumFor);
         setAddToAlbumFor(null);
         openView({ kind: 'newAlbum' });
         return;
@@ -512,7 +517,7 @@ export function AddToAlbumSheet(): React.JSX.Element | null {
       toast(`${addToAlbumFor.length} → ${album.kind === 'favorites' ? t.favorites : album.name}`);
       setAddToAlbumFor(null);
     },
-    [addToAlbumFor, albums, refresh, setAddToAlbumFor, t.favorites, toast, openView],
+    [addToAlbumFor, albums, refresh, setAddToAlbumFor, setPendingAlbumMedia, t.favorites, toast, openView],
   );
 
   useInput(

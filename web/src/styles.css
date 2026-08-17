@@ -741,6 +741,12 @@ input { background: none; border: none; outline: none; }
 
 .form-title { font-size: 1.1em; font-weight: 600; }
 
+.form-note {
+  font-size: 0.78em;
+  color: var(--accent-ink);
+  margin-top: -4px;
+}
+
 .field { display: flex; flex-direction: column; gap: 7px; }
 
 .field > .lab {

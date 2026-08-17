@@ -94,6 +94,12 @@ interface Store {
 
   addToAlbumFor: number[] | null;
   setAddToAlbumFor: (ids: number[] | null) => void;
+  /**
+   * Photos en attente d'un album qui n'existe pas encore : « Ajouter à un
+   * album » → « Nouvel album » les met de côté, et la création les y verse.
+   */
+  pendingAlbumMedia: number[] | null;
+  setPendingAlbumMedia: (ids: number[] | null) => void;
   tagEditorFor: number[] | null;
   setTagEditorFor: (ids: number[] | null) => void;
   osk: OskRequest | null;
@@ -138,6 +144,7 @@ export function StoreProvider({ children }: { children: ReactNode }): React.JSX.
   const [selectMode, setSelectModeState] = useState(false);
   const [selection, setSelection] = useState<number[]>([]);
   const [addToAlbumFor, setAddToAlbumFor] = useState<number[] | null>(null);
+  const [pendingAlbumMedia, setPendingAlbumMedia] = useState<number[] | null>(null);
   const [tagEditorFor, setTagEditorFor] = useState<number[] | null>(null);
   const [osk, setOsk] = useState<OskRequest | null>(null);
   const [sheet, setSheet] = useState<Sheet | null>(null);
@@ -257,7 +264,8 @@ export function StoreProvider({ children }: { children: ReactNode }): React.JSX.
     anchor, setAnchor,
     nav, setNav, tagCursor, setTagCursor,
     selectMode, setSelectMode, selection, toggleSelection, setSelection,
-    addToAlbumFor, setAddToAlbumFor, tagEditorFor, setTagEditorFor, osk, setOsk,
+    addToAlbumFor, setAddToAlbumFor, pendingAlbumMedia, setPendingAlbumMedia,
+    tagEditorFor, setTagEditorFor, osk, setOsk,
     sheet, setSheet,
     accentHue, toast, toasts,
   };

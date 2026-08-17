@@ -34,6 +34,7 @@ export function App(): React.JSX.Element {
     clearFilters, filtersActive, query, anchor, setAnchor, nav, setNav, selectMode, setSelectMode,
     selection, setSelection, toggleSelection, setAddToAlbumFor, setTagEditorFor, setOsk,
     sheet, setSheet, toast, tagCursor, setTagCursor,
+    pendingAlbumMedia, setPendingAlbumMedia,
   } = store;
 
   const isAdmin = state?.isAdmin ?? false;
@@ -191,6 +192,12 @@ export function App(): React.JSX.Element {
     }
   }, [view, currentAlbum, settings.hue]);
 
+  // Formulaire quitté sans créer : les photos mises de côté sont oubliées,
+  // sinon elles atterriraient dans le prochain album créé, des heures plus tard.
+  useEffect(() => {
+    if (view.kind !== 'newAlbum') setPendingAlbumMedia(null);
+  }, [view.kind, setPendingAlbumMedia]);
+
   // ------------------------------------------------------------ actions
 
   const contentCount = isMediaView
@@ -336,6 +343,14 @@ export function App(): React.JSX.Element {
     if (!draft.name.trim()) return;
     if (view.kind === 'newAlbum') {
       const album = await api.createAlbum(draft);
+      // Album créé depuis « Ajouter à un album » : les photos mises de côté y
+      // entrent tout de suite. On arrive donc dans un album déjà rempli.
+      const waiting = pendingAlbumMedia ?? [];
+      if (waiting.length > 0) {
+        await api.albumMedia(album.id, waiting);
+        toast(`${waiting.length} → ${album.name}`);
+      }
+      setPendingAlbumMedia(null);
       await refresh();
       openView({ kind: 'album', id: album.id });
     } else if (view.kind === 'editAlbum') {
@@ -343,7 +358,7 @@ export function App(): React.JSX.Element {
       await refresh();
       back();
     }
-  }, [draft, view, refresh, openView, back]);
+  }, [draft, view, refresh, openView, back, pendingAlbumMedia, setPendingAlbumMedia, toast]);
 
   // ------------------------------------------------- panneaux (valeurs -/+)
 

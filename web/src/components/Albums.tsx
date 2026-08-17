@@ -124,7 +124,10 @@ export function AlbumForm({
   /** Défini en modification : sert à charger les photos pour la couverture. */
   albumId?: number;
 }): React.JSX.Element {
-  const { nav, state, t, setOsk } = useStore();
+  const { nav, state, t, setOsk, pendingAlbumMedia } = useStore();
+  // Album créé depuis une sélection : on annonce ce qui va y entrer, sinon
+  // rien à l'écran ne dit que les photos suivront.
+  const waiting = albumId === undefined ? (pendingAlbumMedia?.length ?? 0) : 0;
   const fields = albumFields(albumId !== undefined);
   const field = fields[nav.zone === 'content' ? nav.contentIndex : -1];
   const [covers, setCovers] = useState<MediaItem[]>([]);
@@ -156,6 +159,7 @@ export function AlbumForm({
   return (
     <div className="form-card">
       <div className="form-title">{title}</div>
+      {waiting > 0 && <div className="form-note">{t.willJoinAlbum(waiting)}</div>}
 
       <div className={`field${field === 'name' ? ' on' : ''}`}>
         <span className="lab">{t.name}</span>

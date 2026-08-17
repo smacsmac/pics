@@ -188,6 +188,12 @@ donne trois colonnes au lieu de deux, sans quoi l'écran serait à moitié vide.
 Créez, renommez, changez la couleur ou la musique, supprimez l'album — les
 photos, elles, restent dans la bibliothèque.
 
+**Créer un album à partir d'une sélection** : sélectionnez les photos, **Y** →
+*Ajouter à un album* → *Nouvel album*. Le formulaire annonce combien de photos
+attendent, et elles entrent dans l'album dès sa création — on arrive donc
+directement dans un album déjà rempli, sans avoir à refaire l'opération.
+Abandonner le formulaire abandonne aussi la sélection en attente.
+
 Pour la **photo de couverture**, trois chemins : la bande de vignettes dans
 *Modifier l'album*, le clic droit sur une photo de l'album → *Définir comme
 couverture*, ou **LS** pendant qu'on la regarde en plein écran.
