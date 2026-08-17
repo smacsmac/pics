@@ -42,6 +42,9 @@ export function AlbumsGrid({
           className={`album-card${focusIndex === i ? ' focus' : ''}`}
           style={{ ['--card-hue' as string]: String(album.color) }}
           data-flat={i}
+          // Repère du clic droit : le menu contextuel remonte jusqu'ici pour
+          // savoir sur quel album on a cliqué.
+          data-album={album.id}
           onClick={() => onOpen(album)}
         >
           {album.coverMediaId ? (

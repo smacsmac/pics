@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Root } from '../../../shared/types';
 import { api, ApiError } from '../lib/api';
 import { LANGS, monthNames } from '../lib/i18n';
@@ -772,6 +772,186 @@ export function ContextMenu({
       <button className="menu-item" onClick={onToggleHidden}>
         <IconHide /> {target.hidden ? t.unhide : t.hide}
       </button>
+    </div>
+  );
+}
+
+export interface AlbumMenuTarget {
+  x: number;
+  y: number;
+  albumId: number;
+}
+
+/** Clic droit sur une carte d'album : ses tags et sa fiche, sans l'ouvrir. */
+export function AlbumContextMenu({
+  target,
+  onClose,
+  onOpen,
+  onEdit,
+  onEditTags,
+}: {
+  target: AlbumMenuTarget;
+  onClose: () => void;
+  onOpen: () => void;
+  onEdit: () => void;
+  onEditTags: () => void;
+}): React.JSX.Element {
+  const { t, state } = useStore();
+  const album = state?.albums.find((a) => a.id === target.albumId);
+
+  useEffect(() => {
+    const close = (): void => onClose();
+    window.addEventListener('click', close);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('resize', close);
+    };
+  }, [onClose]);
+
+  const style = {
+    left: Math.min(target.x, window.innerWidth - 230),
+    top: Math.min(target.y, window.innerHeight - 200),
+  };
+
+  return (
+    <div className="menu" style={style} onClick={(e) => e.stopPropagation()}>
+      <button className="menu-item" onClick={onOpen}>
+        <IconExpand /> {t.open}
+      </button>
+      <div className="menu-sep" />
+      <button className="menu-item" onClick={onEditTags}>
+        <IconTag /> {t.editTags}
+      </button>
+      {/* Les favoris sont un album à part : pas de fiche à modifier. */}
+      {album?.kind !== 'favorites' && (
+        <button className="menu-item" onClick={onEdit}>
+          <IconPencil /> {t.editAlbum}
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Tags d'un album. À la différence des photos, un album porte une liste
+ * complète : on l'enregistre telle quelle plutôt que par ajouts et retraits.
+ */
+export function AlbumTagsSheet(): React.JSX.Element | null {
+  const { albumTagsFor, setAlbumTagsFor, state, refresh, t, setOsk, toast } = useStore();
+  const album = state?.albums.find((a) => a.id === albumTagsFor) ?? null;
+  const [pending, setPending] = useState<string[]>([]);
+  const [input, setInput] = useState('');
+  const open = album !== null;
+  // Les tags au moment de l'ouverture. Depuis un ref, parce que l'objet album
+  // est recree a chaque rafraichissement de l'etat : en dependre effacerait la
+  // saisie en cours.
+  const tagsAtOpen = useRef<string[]>([]);
+  tagsAtOpen.current = album?.tags ?? [];
+
+  useEffect(() => {
+    if (albumTagsFor === null) return;
+    setPending(tagsAtOpen.current);
+    setInput('');
+  }, [albumTagsFor]);
+
+  const save = useCallback(
+    async (tags: string[]) => {
+      if (!album) return;
+      await api.updateAlbum(album.id, { tags });
+      await refresh();
+      toast(t.editTags);
+      setAlbumTagsFor(null);
+    },
+    [album, refresh, setAlbumTagsFor, t.editTags, toast],
+  );
+
+  useInput(
+    useCallback(
+      (action) => {
+        if (!open) return false;
+        if (action === 'back') setAlbumTagsFor(null);
+        else if (action === 'confirm') {
+          setOsk({
+            label: t.addTag,
+            value: '',
+            onCommit: (value) => {
+              const tag = value.trim();
+              if (tag) setPending((p) => (p.includes(tag) ? p : [...p, tag]));
+            },
+          });
+        }
+        return true;
+      },
+      [open, setAlbumTagsFor, setOsk, t.addTag],
+    ),
+    open,
+  );
+
+  if (!open || !album) return null;
+  const known = (state?.tags ?? []).filter((tag) => !pending.includes(tag));
+
+  return (
+    <div className="overlay" onClick={() => setAlbumTagsFor(null)}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-title">
+          {t.editTags} · {album.kind === 'favorites' ? t.favorites : album.name}
+        </div>
+
+        <div className="chip-row">
+          {pending.map((tag) => (
+            <span key={tag} className="chip on">
+              {tag}
+              <button className="x" onClick={() => setPending((p) => p.filter((x) => x !== tag))}>
+                <IconX />
+              </button>
+            </span>
+          ))}
+          <input
+            className="text-input"
+            style={{ width: '14ch', flex: '0 0 auto' }}
+            autoFocus
+            value={input}
+            placeholder={t.addTag}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              const tag = input.trim();
+              if (e.key === 'Enter' && tag) {
+                setPending((p) => (p.includes(tag) ? p : [...p, tag]));
+                setInput('');
+              }
+            }}
+          />
+        </div>
+
+        {known.length > 0 && (
+          <div className="field">
+            <span className="lab">{t.tags}</span>
+            <div className="chip-row">
+              {known.map((tag) => (
+                <button key={tag} className="chip" onClick={() => setPending((p) => [...p, tag])}>
+                  {tag}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="form-actions">
+          <button className="btn" onClick={() => setAlbumTagsFor(null)}>
+            {t.cancel}
+          </button>
+          <button
+            className="btn primary"
+            onClick={() => {
+              const tag = input.trim();
+              void save(tag && !pending.includes(tag) ? [...pending, tag] : pending);
+            }}
+          >
+            {t.save}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

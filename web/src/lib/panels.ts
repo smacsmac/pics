@@ -18,6 +18,21 @@ export const LEFT_ROWS: PanelRow[] = [
   { id: 'clear', sub: 1 },
 ];
 
+/**
+ * Sur l'écran Albums, la recherche ne porte plus sur des photos : les dates et
+ * le lieu n'ont rien à filtrer. On cherche un album par son nom ou par ses tags.
+ */
+export const ALBUM_LEFT_ROWS: PanelRow[] = [
+  { id: 'name', sub: 1 },
+  { id: 'tags', sub: 1 },
+  { id: 'clear', sub: 1 },
+];
+
+/** Les rangées de la barre de recherche dépendent de ce qu'on regarde. */
+export function leftRows(albumsView: boolean): PanelRow[] {
+  return albumsView ? ALBUM_LEFT_ROWS : LEFT_ROWS;
+}
+
 export function rightRows(isAdmin: boolean): PanelRow[] {
   const rows: PanelRow[] = [
     { id: 'font', sub: 1 },

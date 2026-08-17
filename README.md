@@ -50,6 +50,7 @@ avec la même interface, tactile en prime.
 | Définir la photo affichée comme couverture | **LS** (clic du stick gauche) | — | Modifier l'album → couverture |
 | Viser un mois dans le curseur de dates | **stick droit ↑ ↓** | Page préc. / Page suiv. | survol |
 | Aller au mois visé | **A** | Entrée | clic |
+| Tags d'un album (sur sa carte) | **X** | — | clic droit → Modifier les tags |
 | Menu contextuel | — | — | clic droit |
 
 Les deux barres verticales n'apparaissent que lorsque leur bouton est
@@ -233,9 +234,33 @@ d'un quart de seconde, et le volume remonte à la fermeture.
 
 ## Tags
 
-Les tags s'ajoutent à la main : clic droit sur une photo → **Modifier les
-tags**. En mode sélection multiple, le tag s'applique à toute la sélection d'un
-coup. Un album peut lui aussi porter des tags.
+Les tags s'ajoutent à la main, jamais devinés.
+
+**Sur une photo** : clic droit → *Modifier les tags*. En mode sélection
+multiple, le tag s'applique à toute la sélection d'un coup.
+
+**Sur un album** : clic droit sur sa carte → *Modifier les tags*, ou **X** à la
+manette quand il est surligné. Le champ *tags* du formulaire *Nouvel album* et
+*Modifier l'album* fait la même chose.
+
+### Chercher par tag
+
+La barre de recherche **s'adapte à ce qu'on regarde** :
+
+* sur l'accueil, dans un album ou dans les vidéos, elle filtre les **photos** :
+  dates, lieu, tags ;
+* sur l'écran **Albums**, il n'y a pas de dates ni de lieu à filtrer : elle
+  cherche un album par son **nom** ou par ses **tags**.
+
+Le filtre par tags est un « et » : une photo — ou un album — doit porter *tous*
+les tags demandés pour rester à l'écran.
+
+> **Une confusion corrigée.** La pilule de la rangée *tags* montre le tag
+> *candidat*, celui que **A** (ou LB/RB) ajouterait au filtre. Elle s'affichait
+> comme un filtre déjà posé, ce qui donnait l'impression d'avoir filtré alors
+> que toutes les photos restaient là. Elle est maintenant estompée et préfixée
+> d'un `+` tant qu'on n'a pas confirmé ; les filtres réellement appliqués sont
+> les pastilles pleines juste en dessous, qu'un clic retire.
 
 ## Lieux
 

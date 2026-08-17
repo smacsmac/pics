@@ -26,7 +26,14 @@ export interface Filters {
   from: MonthValue | null;
   to: MonthValue | null;
   place: string | null;
+  /**
+   * Tags demandés. Ils filtrent les photos dans la chronologie et dans un
+   * album, et les albums eux-mêmes sur l'écran Albums : la barre de recherche
+   * s'applique à ce qu'on a sous les yeux.
+   */
   tags: string[];
+  /** Recherche par nom, utilisée sur l'écran Albums. */
+  text: string;
 }
 
 export interface Nav {
@@ -100,6 +107,9 @@ interface Store {
    */
   pendingAlbumMedia: number[] | null;
   setPendingAlbumMedia: (ids: number[] | null) => void;
+  /** Album dont on modifie les tags (clic droit sur sa carte). */
+  albumTagsFor: number | null;
+  setAlbumTagsFor: (id: number | null) => void;
   tagEditorFor: number[] | null;
   setTagEditorFor: (ids: number[] | null) => void;
   osk: OskRequest | null;
@@ -120,7 +130,7 @@ const DEFAULT_SETTINGS: Settings = {
   layout: 'day', uploadRequiresAdmin: false,
 };
 
-const EMPTY_FILTERS: Filters = { from: null, to: null, place: null, tags: [] };
+const EMPTY_FILTERS: Filters = { from: null, to: null, place: null, tags: [], text: '' };
 
 function monthStart(v: MonthValue): number {
   return new Date(v.year, v.month, 1, 0, 0, 0, 0).getTime();
@@ -145,6 +155,7 @@ export function StoreProvider({ children }: { children: ReactNode }): React.JSX.
   const [selection, setSelection] = useState<number[]>([]);
   const [addToAlbumFor, setAddToAlbumFor] = useState<number[] | null>(null);
   const [pendingAlbumMedia, setPendingAlbumMedia] = useState<number[] | null>(null);
+  const [albumTagsFor, setAlbumTagsFor] = useState<number | null>(null);
   const [tagEditorFor, setTagEditorFor] = useState<number[] | null>(null);
   const [osk, setOsk] = useState<OskRequest | null>(null);
   const [sheet, setSheet] = useState<Sheet | null>(null);
@@ -226,7 +237,8 @@ export function StoreProvider({ children }: { children: ReactNode }): React.JSX.
   }, []);
 
   const filtersActive =
-    filters.from !== null || filters.to !== null || filters.place !== null || filters.tags.length > 0;
+    filters.from !== null || filters.to !== null || filters.place !== null ||
+    filters.tags.length > 0 || filters.text.trim() !== '';
 
   const query = useMemo<MediaQuery>(() => {
     const q: MediaQuery = {};
@@ -265,7 +277,7 @@ export function StoreProvider({ children }: { children: ReactNode }): React.JSX.
     nav, setNav, tagCursor, setTagCursor,
     selectMode, setSelectMode, selection, toggleSelection, setSelection,
     addToAlbumFor, setAddToAlbumFor, pendingAlbumMedia, setPendingAlbumMedia,
-    tagEditorFor, setTagEditorFor, osk, setOsk,
+    albumTagsFor, setAlbumTagsFor, tagEditorFor, setTagEditorFor, osk, setOsk,
     sheet, setSheet,
     accentHue, toast, toasts,
   };

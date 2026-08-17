@@ -901,6 +901,17 @@ input { background: none; border: none; outline: none; }
 }
 
 .chip.on { border-color: var(--accent); color: var(--accent-ink); box-shadow: 0 0 12px var(--glow-soft); }
+
+/* Filtres réellement appliqués, sous la pilule. C'est eux qui filtrent : ils
+   doivent primer visuellement sur la pilule, qui ne fait que proposer un tag. */
+.panel-row .chip.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #08080c;
+  font-weight: 600;
+  font-size: 0.84em;
+  padding: 5px 12px;
+}
 .chip .x { color: var(--muted); font-size: 0.9em; }
 .chip .x:hover { color: #ff8fa3; }
 

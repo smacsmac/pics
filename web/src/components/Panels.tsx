@@ -17,17 +17,99 @@ interface PanelProps {
 }
 
 export function SearchPanel({ onFocusRow }: PanelProps): React.JSX.Element {
-  const { nav, filters, setFilters, clearFilters, settings, state, t, tagCursor, setSheet } = useStore();
+  const { nav, filters, setFilters, clearFilters, settings, state, t, tagCursor, setSheet, view, setOsk } =
+    useStore();
   const active = nav.zone === 'left';
   const rowAt = (i: number): boolean => active && nav.panelIndex === i;
   const months = monthNames(settings.lang);
   const bounds = state?.bounds ?? { min: null, max: null };
+  // Sur l'écran Albums on cherche des albums, pas des photos : ni dates ni lieu.
+  const albumsView = view.kind === 'albums';
 
   const from = displayMonth(filters.from, bounds.min);
   const to = displayMonth(filters.to, bounds.max);
   const tags = state?.tags ?? [];
   const places = state?.places ?? [];
   const hoveredTag = tags.length > 0 ? tags[((tagCursor % tags.length) + tags.length) % tags.length] : null;
+  // Le tag sous le curseur n'est qu'un *candidat* : c'est A (ou un clic) qui
+  // l'applique. Il s'affichait comme un filtre posé, ce qui donnait
+  // l'impression d'avoir filtré alors que toutes les photos restaient là.
+  const hoveredApplied = hoveredTag !== null && filters.tags.includes(hoveredTag);
+
+  /** Bloc de tags, partagé par les deux versions du panneau. */
+  const tagsRow = (index: number): React.JSX.Element => (
+    <div className={`panel-row${rowAt(index) ? ' on' : ''}`} onMouseEnter={() => onFocusRow(index)}>
+      <span className="lab">{albumsView ? t.albumTags : t.tags}</span>
+      <div className="row-line">
+        <button
+          className={`pill${rowAt(index) ? ' on' : ''}${hoveredApplied ? '' : ' muted'}`}
+          onClick={() => {
+            onFocusRow(index);
+            setSheet({ kind: 'tagPicker' });
+          }}
+        >
+          {hoveredTag === null ? t.anyTag : hoveredApplied ? hoveredTag : `+ ${hoveredTag}`}
+        </button>
+      </div>
+      {filters.tags.length > 0 && (
+        <div className="chip-row">
+          {filters.tags.map((tag) => (
+            <button
+              key={tag}
+              className="chip on"
+              title={t.remove}
+              onClick={() => setFilters((f) => ({ ...f, tags: f.tags.filter((x) => x !== tag) }))}
+            >
+              {tag}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
+  if (albumsView) {
+    return (
+      <aside className="panel">
+        <div className={`panel-row${rowAt(0) ? ' on' : ''}`} onMouseEnter={() => onFocusRow(0)}>
+          <span className="lab">{t.albumName}</span>
+          <div className="row-line">
+            <input
+              className="text-input"
+              value={filters.text}
+              placeholder={t.anyAlbum}
+              onChange={(e) => setFilters((f) => ({ ...f, text: e.target.value }))}
+              onFocus={() => onFocusRow(0)}
+            />
+          </div>
+          {/* Sans clavier physique, A ouvre le clavier à l'écran. */}
+          <button
+            className="mini-btn"
+            onClick={() =>
+              setOsk({
+                label: t.albumName,
+                value: filters.text,
+                onCommit: (value) => setFilters((f) => ({ ...f, text: value })),
+              })
+            }
+          >
+            {t.type}
+          </button>
+        </div>
+
+        {tagsRow(1)}
+
+        <button
+          className={`panel-row${rowAt(2) ? ' on' : ''}`}
+          style={{ textAlign: 'left' }}
+          onMouseEnter={() => onFocusRow(2)}
+          onClick={clearFilters}
+        >
+          <span className="lab">{t.clearFilters}</span>
+        </button>
+      </aside>
+    );
+  }
 
   const openMonth = (which: 'from' | 'to', field: 'month' | 'year', sub: number): void => {
     onFocusRow(which === 'from' ? 0 : 1, sub);
@@ -81,34 +163,7 @@ export function SearchPanel({ onFocusRow }: PanelProps): React.JSX.Element {
         {places.length === 0 && <span className="mini">—</span>}
       </div>
 
-      <div className={`panel-row${rowAt(3) ? ' on' : ''}`} onMouseEnter={() => onFocusRow(3)}>
-        <span className="lab">{t.tags}</span>
-        <div className="row-line">
-          <button
-            className={`pill${rowAt(3) ? ' on' : ''}${hoveredTag ? '' : ' muted'}`}
-            onClick={() => {
-              onFocusRow(3);
-              setSheet({ kind: 'tagPicker' });
-            }}
-          >
-            {hoveredTag ?? t.anyTag}
-          </button>
-        </div>
-        {filters.tags.length > 0 && (
-          <div className="chip-row">
-            {filters.tags.map((tag) => (
-              <button
-                key={tag}
-                className="chip on"
-                title={t.remove}
-                onClick={() => setFilters((f) => ({ ...f, tags: f.tags.filter((x) => x !== tag) }))}
-              >
-                {tag}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      {tagsRow(3)}
 
       <div className={`panel-row${rowAt(4) ? ' on' : ''}`} onMouseEnter={() => onFocusRow(4)}>
         <span className="lab">{t.tbd}</span>

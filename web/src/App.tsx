@@ -8,8 +8,9 @@ import {
   IconZoomOut,
 } from './components/Icons';
 import {
-  AddToAlbumSheet, AdminSheet, ContextMenu, FoldersSheet, MonthPickerSheet, Osk,
-  PlacePickerSheet, TagEditorSheet, TagPickerSheet, Toasts, type MenuTarget,
+  AddToAlbumSheet, AdminSheet, AlbumContextMenu, AlbumTagsSheet, ContextMenu, FoldersSheet,
+  MonthPickerSheet, Osk, PlacePickerSheet, TagEditorSheet, TagPickerSheet, Toasts,
+  type AlbumMenuTarget, type MenuTarget,
 } from './components/Overlays';
 import { SearchPanel, SettingsPanel, displayMonth } from './components/Panels';
 import { UploadSheet } from './components/Upload';
@@ -24,7 +25,7 @@ import {
 } from './lib/grid';
 import { LANGS } from './lib/i18n';
 import { onPadStatus, startInput, useInput, type Action, type PadStatus } from './lib/input';
-import { FONT_MAX, HUES, LEFT_ROWS, VOLUME_MAX, rightRows } from './lib/panels';
+import { FONT_MAX, HUES, VOLUME_MAX, leftRows, rightRows } from './lib/panels';
 import { useStore } from './lib/store';
 
 export function App(): React.JSX.Element {
@@ -34,7 +35,7 @@ export function App(): React.JSX.Element {
     clearFilters, filtersActive, query, anchor, setAnchor, nav, setNav, selectMode, setSelectMode,
     selection, setSelection, toggleSelection, setAddToAlbumFor, setTagEditorFor, setOsk,
     sheet, setSheet, toast, tagCursor, setTagCursor,
-    pendingAlbumMedia, setPendingAlbumMedia,
+    pendingAlbumMedia, setPendingAlbumMedia, setAlbumTagsFor,
   } = store;
 
   const isAdmin = state?.isAdmin ?? false;
@@ -85,6 +86,7 @@ export function App(): React.JSX.Element {
   // Viser ne déplace pas la vue : il faut confirmer avec A.
   const [scrubAim, setScrubAim] = useState<number | null>(null);
   const [menu, setMenu] = useState<MenuTarget | null>(null);
+  const [albumMenu, setAlbumMenu] = useState<AlbumMenuTarget | null>(null);
   const [backdrop, setBackdrop] = useState<string | null>(null);
   const [pad, setPad] = useState<PadStatus>({ connected: false, id: null });
   const [draft, setDraft] = useState<AlbumDraft>({
@@ -200,10 +202,26 @@ export function App(): React.JSX.Element {
 
   // ------------------------------------------------------------ actions
 
+  /**
+   * Albums réellement affichés. Sur l'écran Albums, la barre de recherche
+   * filtre les albums plutôt que les photos : par tags — tous doivent être
+   * présents, comme pour les photos — et par nom.
+   */
+  const visibleAlbums = useMemo(() => {
+    const needle = filters.text.trim().toLowerCase();
+    if (view.kind !== 'albums') return albums;
+    return albums.filter((album) => {
+      if (!filters.tags.every((tag) => album.tags.includes(tag))) return false;
+      if (!needle) return true;
+      const name = album.kind === 'favorites' ? t.favorites : album.name;
+      return name.toLowerCase().includes(needle);
+    });
+  }, [albums, filters.tags, filters.text, view.kind, t.favorites]);
+
   const contentCount = isMediaView
     ? feed.items.length
     : view.kind === 'albums'
-      ? albums.length
+      ? visibleAlbums.length
       : isForm
         ? formFields.length
         : 0;
@@ -362,9 +380,12 @@ export function App(): React.JSX.Element {
 
   // ------------------------------------------------- panneaux (valeurs -/+)
 
+  // Rangées de la barre de recherche : celles des albums ou celles des photos.
+  const searchRows = leftRows(view.kind === 'albums');
+
   const bumpLeftRow = useCallback(
     (delta: number) => {
-      const row = LEFT_ROWS[nav.panelIndex];
+      const row = searchRows[nav.panelIndex];
       if (!row) return;
       const bounds = state?.bounds ?? { min: null, max: null };
 
@@ -400,7 +421,7 @@ export function App(): React.JSX.Element {
         if (tags.length > 0) setTagCursor(tagCursor + delta);
       }
     },
-    [nav.panelIndex, nav.subIndex, state, filters, setFilters, tagCursor, setTagCursor],
+    [searchRows, nav.panelIndex, nav.subIndex, state, filters, setFilters, tagCursor, setTagCursor],
   );
 
   const bumpRightRow = useCallback(
@@ -440,7 +461,7 @@ export function App(): React.JSX.Element {
   );
 
   const confirmLeftRow = useCallback(() => {
-    const row = LEFT_ROWS[nav.panelIndex];
+    const row = searchRows[nav.panelIndex];
     if (!row) return;
     if (row.id === 'from' || row.id === 'to') {
       setSheet({
@@ -460,8 +481,18 @@ export function App(): React.JSX.Element {
       } else {
         setSheet({ kind: 'tagPicker' });
       }
+    } else if (row.id === 'name') {
+      // Recherche par nom d'album : à la manette, A ouvre le clavier à l'écran.
+      setOsk({
+        label: t.albumName,
+        value: filters.text,
+        onCommit: (value) => setFilters((f) => ({ ...f, text: value })),
+      });
     } else if (row.id === 'clear') clearFilters();
-  }, [nav.panelIndex, nav.subIndex, setSheet, state, tagCursor, setFilters, clearFilters]);
+  }, [
+    searchRows, nav.panelIndex, nav.subIndex, setSheet, state, tagCursor, setFilters, clearFilters,
+    setOsk, t.albumName, filters.text,
+  ]);
 
   const confirmRightRow = useCallback(() => {
     const rows = rightRows(isAdmin);
@@ -480,10 +511,17 @@ export function App(): React.JSX.Element {
     (action: Action): boolean => {
       // Une surcouche est ouverte : elle a son propre gestionnaire, plus bas
       // dans la pile. On décline pour lui laisser la main.
-      if (sheet || store.osk || store.addToAlbumFor || store.tagEditorFor) return false;
+      if (sheet || store.osk || store.addToAlbumFor || store.tagEditorFor || store.albumTagsFor) {
+        return false;
+      }
 
       if (menu) {
         if (action === 'back') setMenu(null);
+        return true;
+      }
+
+      if (albumMenu) {
+        if (action === 'back') setAlbumMenu(null);
         return true;
       }
 
@@ -657,7 +695,7 @@ export function App(): React.JSX.Element {
 
       // ---- barres verticales
       if (nav.zone === 'left' || nav.zone === 'right') {
-        const rows = nav.zone === 'left' ? LEFT_ROWS : rightRows(isAdmin);
+        const rows = nav.zone === 'left' ? searchRows : rightRows(isAdmin);
         const row = rows[nav.panelIndex];
         switch (action) {
           case 'up':
@@ -755,10 +793,12 @@ export function App(): React.JSX.Element {
       }
 
       if (view.kind === 'albums') {
+        // La navigation suit la grille filtrée : un album masqué par la
+        // recherche ne doit pas rester atteignable à la manette.
         const move = (delta: number): void =>
           setNav((n) => ({
             ...n,
-            contentIndex: Math.min(albums.length - 1, Math.max(0, n.contentIndex + delta)),
+            contentIndex: Math.min(visibleAlbums.length - 1, Math.max(0, n.contentIndex + delta)),
           }));
         switch (action) {
           case 'left': move(-1); break;
@@ -769,12 +809,18 @@ export function App(): React.JSX.Element {
             else move(-albumCols);
             break;
           case 'confirm': {
-            const album = albums[nav.contentIndex];
+            const album = visibleAlbums[nav.contentIndex];
             if (album) openView({ kind: 'album', id: album.id });
             break;
           }
+          case 'actionX': {
+            // X sur un album : ses tags, sans passer par la fiche complète.
+            const album = visibleAlbums[nav.contentIndex];
+            if (album && requireAdmin()) setAlbumTagsFor(album.id);
+            break;
+          }
           case 'actionY': {
-            const album = albums[nav.contentIndex];
+            const album = visibleAlbums[nav.contentIndex];
             if (album && album.kind !== 'favorites' && isAdmin) openView({ kind: 'editAlbum', id: album.id });
             break;
           }
@@ -870,7 +916,8 @@ export function App(): React.JSX.Element {
       return true;
     },
     [
-      sheet, store.osk, store.addToAlbumFor, store.tagEditorFor, menu, viewerIndex, feed, nav,
+      sheet, store.osk, store.addToAlbumFor, store.tagEditorFor, store.albumTagsFor,
+      menu, albumMenu, setAlbumTagsFor, visibleAlbums, viewerIndex, feed, nav,
       isAdmin, selectMode, setSelectMode, setNav, activateTop, recentAlbums.length,
       recentVisible, gearIndex, bumpLeftRow,
       bumpRightRow, confirmLeftRow, confirmRightRow, isMediaView, sections, cols, focusedItem,
@@ -887,6 +934,18 @@ export function App(): React.JSX.Element {
   // Clic droit : le menu contextuel du croquis, réservé aux gestes admin.
   const onContextMenu = useCallback(
     (event: React.MouseEvent) => {
+      // Une carte d'album a son propre menu : ses tags, sa fiche.
+      const card = (event.target as HTMLElement).closest('[data-album]');
+      if (card) {
+        event.preventDefault();
+        setAlbumMenu({
+          x: event.clientX,
+          y: event.clientY,
+          albumId: Number(card.getAttribute('data-album')),
+        });
+        return;
+      }
+
       const tile = (event.target as HTMLElement).closest('[data-media]');
       if (!tile) return;
       event.preventDefault();
@@ -1099,9 +1158,18 @@ export function App(): React.JSX.Element {
                   else void doRemoveOrHide(item);
                 }}
               />
+            ) : view.kind === 'albums' && visibleAlbums.length === 0 ? (
+              // Une recherche sans résultat renvoyait une page blanche, sans dire
+              // que c'est le filtre qui vide la grille.
+              <div className="empty">
+                <span className="big">{t.noAlbumMatch}</span>
+                <button className="btn primary" onClick={clearFilters}>
+                  {t.clearFilters}
+                </button>
+              </div>
             ) : view.kind === 'albums' ? (
               <AlbumsRegion
-                albums={albums}
+                albums={visibleAlbums}
                 cardWidth={ALBUM_CARD_WIDTHS[zoom] ?? ALBUM_CARD_WIDTHS[2]}
                 onCols={setAlbumCols}
                 onOpen={(album) => openView({ kind: 'album', id: album.id })}
@@ -1272,6 +1340,25 @@ export function App(): React.JSX.Element {
         />
       )}
 
+      {albumMenu && (
+        <AlbumContextMenu
+          target={albumMenu}
+          onClose={() => setAlbumMenu(null)}
+          onOpen={() => {
+            openView({ kind: 'album', id: albumMenu.albumId });
+            setAlbumMenu(null);
+          }}
+          onEdit={() => {
+            if (requireAdmin()) openView({ kind: 'editAlbum', id: albumMenu.albumId });
+            setAlbumMenu(null);
+          }}
+          onEditTags={() => {
+            if (requireAdmin()) setAlbumTagsFor(albumMenu.albumId);
+            setAlbumMenu(null);
+          }}
+        />
+      )}
+
       <UploadSheet />
       <MonthPickerSheet />
       <PlacePickerSheet />
@@ -1280,6 +1367,7 @@ export function App(): React.JSX.Element {
       <FoldersSheet />
       <AddToAlbumSheet />
       <TagEditorSheet />
+      <AlbumTagsSheet />
       <Osk />
       <Toasts />
     </div>
