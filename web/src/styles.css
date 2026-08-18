@@ -1077,6 +1077,8 @@ input { background: none; border: none; outline: none; }
 }
 
 .viewer-info .muted { color: var(--muted); }
+/* Mention « venu de l'album » : présente, mais discrète. */
+.viewer-info .from-album { opacity: 0.62; font-size: 0.86em; font-style: italic; }
 
 /* ------------------------------------------------------------- surcouches */
 

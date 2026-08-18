@@ -255,6 +255,20 @@ La barre de recherche **s'adapte à ce qu'on regarde** :
 Le filtre par tags est un « et » : une photo — ou un album — doit porter *tous*
 les tags demandés pour rester à l'écran.
 
+### Un tag d'album déteint sur ses photos
+
+Taguer un album **taekwondo** suffit : depuis l'accueil, chercher ce tag ramène
+les photos de l'album en plus de celles taguées une par une. Pas besoin de
+taguer chaque photo — ranger une photo dans l'album lui donne le tag, l'en
+retirer le lui reprend.
+
+Les deux sortes de tags restent distinctes là où ça compte :
+
+* en plein écran (**A** sur une photo), un tag hérité est suivi de la mention
+  *venu de l'album* ;
+* *Modifier les tags* sur une photo ne montre que **ses** tags, puisqu'un tag
+  hérité s'enlève sur l'album, pas sur la photo.
+
 > **Une confusion corrigée.** La pilule de la rangée *tags* montre le tag
 > *candidat*, celui que **A** (ou LB/RB) ajouterait au filtre. Elle s'affichait
 > comme un filtre déjà posé, ce qui donnait l'impression d'avoir filtré alors

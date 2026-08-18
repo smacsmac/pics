@@ -60,13 +60,30 @@ function buildWhere(f: Filters): { sql: string; params: unknown[]; joins: string
   }
   if (f.tags && f.tags.length > 0) {
     // Un média doit porter TOUS les tags demandés, pas au moins un.
-    const placeholders = f.tags.map(() => '?').join(',');
-    where.push(`(
-      SELECT COUNT(DISTINCT t.name) FROM media_tags mt
-      JOIN tags t ON t.id = mt.tag_id
-      WHERE mt.media_id = m.id AND t.name IN (${placeholders})
-    ) = ?`);
-    params.push(...f.tags, f.tags.length);
+    //
+    // Un tag posé sur un album vaut pour toutes ses photos : taguer un album
+    // « taekwondo » suffit à retrouver ses photos depuis l'accueil, sans avoir
+    // à taguer chaque photo une par une. L'UNION dédoublonne le cas où la photo
+    // porte déjà le tag de son côté.
+    // Un EXISTS par tag demandé, tous obligatoires. Plus direct qu'un
+    // COUNT(DISTINCT) sur l'union : EXISTS s'arrête au premier résultat au lieu
+    // de bâtir un index temporaire pour chaque photo examinée.
+    for (const tag of f.tags) {
+      where.push(`(
+        EXISTS (
+          SELECT 1 FROM media_tags mt
+            JOIN tags t ON t.id = mt.tag_id
+           WHERE mt.media_id = m.id AND t.name = ?
+        )
+        OR EXISTS (
+          SELECT 1 FROM album_media am
+            JOIN album_tags atg ON atg.album_id = am.album_id
+            JOIN tags t ON t.id = atg.tag_id
+           WHERE am.media_id = m.id AND t.name = ?
+        )
+      )`);
+      params.push(tag, tag);
+    }
   }
 
   return { sql: where.join(' AND '), params, joins };
@@ -89,6 +106,23 @@ function decorate(rows: MediaRow[], lang: Lang): MediaItem[] {
     const list = tagsById.get(row.id);
     if (list) list.push(row.name);
     else tagsById.set(row.id, [row.name]);
+  }
+
+  // Tags hérités des albums, pour les afficher à côté de ceux de la photo.
+  const albumTagRows = db
+    .prepare(
+      `SELECT DISTINCT am.media_id AS id, t.name
+         FROM album_media am
+         JOIN album_tags atg ON atg.album_id = am.album_id
+         JOIN tags t ON t.id = atg.tag_id
+        WHERE am.media_id IN (${placeholders}) ORDER BY t.name`,
+    )
+    .all(...ids) as Array<{ id: number; name: string }>;
+  const albumTagsById = new Map<number, string[]>();
+  for (const row of albumTagRows) {
+    const list = albumTagsById.get(row.id);
+    if (list) list.push(row.name);
+    else albumTagsById.set(row.id, [row.name]);
   }
 
   const favRows = db
@@ -114,6 +148,10 @@ function decorate(rows: MediaRow[], lang: Lang): MediaItem[] {
     hidden: r.hidden === 1,
     favorite: favorites.has(r.id),
     tags: tagsById.get(r.id) ?? [],
+    // Ce que la photo porte déjà en propre n'est pas répété comme hérité.
+    albumTags: (albumTagsById.get(r.id) ?? []).filter(
+      (tag) => !(tagsById.get(r.id) ?? []).includes(tag),
+    ),
   }));
 }
 

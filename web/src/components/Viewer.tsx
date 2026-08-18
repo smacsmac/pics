@@ -96,6 +96,13 @@ export function Viewer({
             {formatBytes(item.bytes)}
           </div>
           {item.tags.length > 0 && <div className="muted">#{item.tags.join(' #')}</div>}
+          {/* Hérités d'un album : ils comptent dans les recherches, mais se
+              retirent sur l'album et non ici. D'où la mention. */}
+          {item.albumTags.length > 0 && (
+            <div className="muted">
+              #{item.albumTags.join(' #')} <span className="from-album">· {t.fromAlbum}</span>
+            </div>
+          )}
         </div>
       )}
 

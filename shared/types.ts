@@ -18,7 +18,14 @@ export interface MediaItem {
   camera: string | null;
   hidden: boolean;
   favorite: boolean;
+  /** Tags posés sur la photo elle-même : les seuls qu'on puisse lui retirer. */
   tags: string[];
+  /**
+   * Tags hérités des albums qui contiennent cette photo. Ils comptent dans les
+   * recherches au même titre que les siens, mais s'enlèvent sur l'album, pas
+   * sur la photo — d'où la liste séparée.
+   */
+  albumTags: string[];
 }
 
 export interface Album {
