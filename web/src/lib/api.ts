@@ -166,6 +166,16 @@ export const api = {
 
   playback: (id: number) => request<PlaybackInfo>(`/api/media/${id}/playback`),
 
+  /** Tags déjà portés par une sélection : sur tous, ou sur une partie. */
+  tagSummary: (ids: number[]) =>
+    request<{ all: string[]; some: string[] }>(`/api/media/tag-summary?ids=${ids.join(',')}`),
+
+  setTagColor: (name: string, color: number | null) =>
+    request<{ name: string; color: number | null }>('/api/tags/color', {
+      method: 'POST',
+      body: JSON.stringify({ name, color }),
+    }),
+
   thumbUrl: (id: number, size: number) => `/api/thumb/${id}?s=${size}`,
   fileUrl: (id: number) => `/api/file/${id}`,
   musicUrl: (slot: number) => `/api/music/${slot}`,

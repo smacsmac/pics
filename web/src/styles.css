@@ -936,6 +936,67 @@ input { background: none; border: none; outline: none; }
 .chip .x { color: var(--muted); font-size: 0.9em; }
 .chip .x:hover { color: #ff8fa3; }
 
+/* ------------------------------------------------------------- tags colorés
+
+   Un tag peut recevoir sa propre teinte, indépendante de celle du thème. Sans
+   couleur choisie il garde exactement l'apparence d'avant. */
+
+.tag-wrap { position: relative; display: inline-flex; }
+
+.chip.tag { gap: 4px; padding-right: 6px; }
+.chip.tag .hue { color: var(--muted); display: inline-flex; opacity: 0; transition: opacity 0.12s; }
+.tag-wrap:hover .chip.tag .hue { opacity: 1; }
+.chip.tag .hue:hover { color: var(--text); }
+.chip.tag .hue svg { width: 0.9em; height: 0.9em; }
+
+/* Bouton plein, texte clair : le tag se lit d'un coup d'œil dans sa couleur. */
+.chip.tag.tinted {
+  background: hsl(var(--tag-hue) 72% 42%);
+  border-color: hsl(var(--tag-hue) 85% 62%);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 0 10px hsl(var(--tag-hue) 90% 55% / 0.35);
+}
+
+.chip.tag.tinted .x, .chip.tag.tinted .hue { color: rgba(255, 255, 255, 0.75); }
+.chip.tag.tinted .x:hover, .chip.tag.tinted .hue:hover { color: #fff; }
+
+/* Tag présent sur une partie seulement de la sélection : hachuré. */
+.chip.tag.part { border-style: dashed; opacity: 0.78; }
+
+/* Nuancier, posé sous le tag qu'on colore. */
+.hue-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 30;
+  display: flex;
+  gap: 5px;
+  padding: 7px 8px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.55);
+}
+
+.hue-dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  flex: 0 0 auto;
+}
+
+.hue-dot.on { border-color: #fff; }
+.hue-dot:hover { transform: scale(1.15); }
+.hue-dot.none {
+  background: var(--surface-3);
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+}
+.hue-dot.none svg { width: 10px; height: 10px; }
+
 .form-actions { display: flex; gap: 10px; justify-content: flex-end; }
 
 .btn {

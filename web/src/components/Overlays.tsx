@@ -3,9 +3,11 @@ import type { Root } from '../../../shared/types';
 import { api, ApiError } from '../lib/api';
 import { LANGS, monthNames } from '../lib/i18n';
 import { useInput } from '../lib/input';
+import { HUES } from '../lib/panels';
 import { useStore } from '../lib/store';
 import {
-  IconCheck, IconExpand, IconHeart, IconHide, IconPencil, IconPlus, IconSelect, IconTag, IconTrash, IconX,
+  IconCheck, IconExpand, IconHeart, IconHide, IconPalette, IconPencil, IconPlus, IconSelect, IconTag,
+  IconTrash, IconX,
 } from './Icons';
 
 /** Enferme le curseur d'une liste dans ses bornes, avec bouclage. */
@@ -215,7 +217,16 @@ export function TagPickerSheet(): React.JSX.Element | null {
                 className={`option${i === cursor ? ' on' : ''}`}
                 onClick={() => toggle(tag)}
               >
-                <IconTag />
+                {/* Pastille à la couleur du tag, pour le repérer dans la liste. */}
+                <span
+                  className="swatch"
+                  style={{
+                    background:
+                      state?.tagColors[tag] === undefined
+                        ? 'var(--surface-3)'
+                        : `hsl(${state.tagColors[tag]} 72% 50%)`,
+                  }}
+                />
                 <span className="n">{tag}</span>
                 {filters.tags.includes(tag) && <IconCheck />}
               </button>
@@ -573,15 +584,40 @@ export function AddToAlbumSheet(): React.JSX.Element | null {
 export function TagEditorSheet(): React.JSX.Element | null {
   const { tagEditorFor, setTagEditorFor, state, refresh, t, setOsk, toast } = useStore();
   const [pending, setPending] = useState<string[]>([]);
+  const [partial, setPartial] = useState<string[]>([]);
+  const [start, setStart] = useState<string[]>([]);
   const [input, setInput] = useState('');
   const open = tagEditorFor !== null && tagEditorFor.length > 0;
+  const key = tagEditorFor?.join(',') ?? '';
 
+  /**
+   * On part de ce que la sélection porte déjà. Auparavant l'éditeur s'ouvrait
+   * vide : impossible de voir les tags d'une photo, ni de lui en retirer un.
+   * Avec plusieurs photos, on distingue les tags communs à toutes de ceux qui
+   * n'en couvrent qu'une partie.
+   */
   useEffect(() => {
-    if (open) {
-      setPending([]);
-      setInput('');
-    }
-  }, [open]);
+    if (!open || !tagEditorFor) return;
+    let alive = true;
+    setInput('');
+    void api
+      .tagSummary(tagEditorFor)
+      .then((summary) => {
+        if (!alive) return;
+        setPending(summary.all);
+        setStart(summary.all);
+        setPartial(summary.some);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setPending([]);
+        setStart([]);
+        setPartial([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [open, key, tagEditorFor]);
 
   const apply = useCallback(
     async (add: string[], remove: string[]) => {
@@ -592,6 +628,18 @@ export function TagEditorSheet(): React.JSX.Element | null {
     },
     [tagEditorFor, refresh, t.editTags, toast],
   );
+
+  /** Enregistre l'écart entre ce qu'on avait en ouvrant et ce qu'on a maintenant. */
+  const save = useCallback(async () => {
+    const typed = input.trim();
+    const next = typed && !pending.includes(typed) ? [...pending, typed] : pending;
+    const add = next.filter((tag) => !start.includes(tag));
+    // Un tag présent sur une partie seulement n'a pas été « enlevé » si on n'y a
+    // pas touché : on ne retire que ce qui était commun à tout et ne l'est plus.
+    const remove = start.filter((tag) => !next.includes(tag));
+    await apply(add, remove);
+    setTagEditorFor(null);
+  }, [apply, input, pending, start, setTagEditorFor]);
 
   useInput(
     useCallback(
@@ -615,53 +663,73 @@ export function TagEditorSheet(): React.JSX.Element | null {
   );
 
   if (!open) return null;
-  const known = state?.tags ?? [];
+  const count = tagEditorFor?.length ?? 0;
+  // Tags de la bibliothèque qu'on n'a pas déjà sous la main.
+  const known = (state?.tags ?? []).filter((tag) => !pending.includes(tag) && !partial.includes(tag));
 
   return (
     <div className="overlay" onClick={() => setTagEditorFor(null)}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
         <div className="sheet-title">
-          {t.editTags} · {tagEditorFor?.length}
+          {t.editTags} · {t.photoCount(count)}
         </div>
 
-        <div className="chip-row">
-          {pending.map((tag) => (
-            <span key={tag} className="chip on">
-              {tag}
-              <button className="x" onClick={() => setPending((p) => p.filter((x) => x !== tag))}>
-                <IconX />
-              </button>
-            </span>
-          ))}
-          <input
-            className="text-input"
-            style={{ width: '14ch', flex: '0 0 auto' }}
-            autoFocus
-            value={input}
-            placeholder={t.addTag}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && input.trim()) {
-                setPending((p) => [...p, input.trim()]);
-                setInput('');
-              }
-            }}
-          />
+        <div className="field">
+          <span className="lab">{count > 1 ? t.tagsOnAll : t.tagsOnPhoto}</span>
+          <div className="chip-row">
+            {pending.length === 0 && partial.length === 0 && <span className="mini">—</span>}
+            {pending.map((tag) => (
+              <TagChip
+                key={tag}
+                tag={tag}
+                onRemove={() => setPending((p) => p.filter((x) => x !== tag))}
+              />
+            ))}
+            {/* Sur une partie seulement de la sélection : un clic l'étend à tout. */}
+            {partial.map((tag) => (
+              <TagChip
+                key={tag}
+                tag={tag}
+                partial
+                title={t.tagOnSome}
+                onPick={() => {
+                  setPartial((p) => p.filter((x) => x !== tag));
+                  setPending((p) => (p.includes(tag) ? p : [...p, tag]));
+                }}
+                onRemove={() => {
+                  setPartial((p) => p.filter((x) => x !== tag));
+                  void apply([], [tag]);
+                }}
+              />
+            ))}
+            <input
+              className="text-input"
+              style={{ width: '14ch', flex: '0 0 auto' }}
+              autoFocus
+              value={input}
+              placeholder={t.addTag}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                const tag = input.trim();
+                if (e.key === 'Enter' && tag) {
+                  setPending((p) => (p.includes(tag) ? p : [...p, tag]));
+                  setInput('');
+                }
+              }}
+            />
+          </div>
         </div>
 
         {known.length > 0 && (
           <div className="field">
-            <span className="lab">{t.tags}</span>
+            <span className="lab">{t.otherTags}</span>
             <div className="chip-row">
               {known.map((tag) => (
-                <span key={tag} className="chip">
-                  <button onClick={() => setPending((p) => (p.includes(tag) ? p : [...p, tag]))}>
-                    {tag}
-                  </button>
-                  <button className="x" title={t.remove} onClick={() => void apply([], [tag])}>
-                    <IconX />
-                  </button>
-                </span>
+                <TagChip
+                  key={tag}
+                  tag={tag}
+                  onPick={() => setPending((p) => (p.includes(tag) ? p : [...p, tag]))}
+                />
               ))}
             </div>
           </div>
@@ -671,18 +739,95 @@ export function TagEditorSheet(): React.JSX.Element | null {
           <button className="btn" onClick={() => setTagEditorFor(null)}>
             {t.cancel}
           </button>
-          <button
-            className="btn primary"
-            onClick={() => {
-              const add = input.trim() ? [...pending, input.trim()] : pending;
-              void apply(add, []).then(() => setTagEditorFor(null));
-            }}
-          >
+          <button className="btn primary" onClick={() => void save()}>
             {t.save}
           </button>
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * Un tag affiché à sa couleur, avec le nuancier au bout. Sans couleur choisie
+ * il garde l'apparence neutre d'avant.
+ */
+export function TagChip({
+  tag,
+  partial = false,
+  title,
+  onPick,
+  onRemove,
+}: {
+  tag: string;
+  partial?: boolean;
+  title?: string;
+  onPick?: () => void;
+  onRemove?: () => void;
+}): React.JSX.Element {
+  const { state, refresh, t } = useStore();
+  const [picking, setPicking] = useState(false);
+  const isAdmin = state?.isAdmin ?? false;
+  const hue = state?.tagColors[tag];
+
+  // Un clic ailleurs referme le nuancier : sinon en ouvrir un second en
+  // laisserait deux à l'écran.
+  useEffect(() => {
+    if (!picking) return;
+    const close = (): void => setPicking(false);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, [picking]);
+  const style = hue === undefined ? undefined : ({ ['--tag-hue' as string]: String(hue) });
+
+  const choose = (next: number | null): void => {
+    setPicking(false);
+    void api.setTagColor(tag, next).then(refresh).catch(() => {});
+  };
+
+  return (
+    <span className="tag-wrap">
+      <span
+        className={`chip tag${hue === undefined ? '' : ' tinted'}${partial ? ' part' : ''}`}
+        style={style}
+        title={title}
+      >
+        {onPick ? <button onClick={onPick}>{tag}</button> : <span>{tag}</span>}
+        {isAdmin && (
+          <button
+            className="hue"
+            title={t.tagColor}
+            onClick={(e) => {
+              e.stopPropagation();
+              setPicking((v) => !v);
+            }}
+          >
+            <IconPalette />
+          </button>
+        )}
+        {onRemove && (
+          <button className="x" title={t.remove} onClick={onRemove}>
+            <IconX />
+          </button>
+        )}
+      </span>
+
+      {picking && (
+        <span className="hue-pop" onClick={(e) => e.stopPropagation()}>
+          <button className="hue-dot none" title={t.backgroundNone} onClick={() => choose(null)}>
+            <IconX />
+          </button>
+          {HUES.map((h) => (
+            <button
+              key={h}
+              className={`hue-dot${hue === h ? ' on' : ''}`}
+              style={{ background: `hsl(${h} 85% 55%)` }}
+              onClick={() => choose(h)}
+            />
+          ))}
+        </span>
+      )}
+    </span>
   );
 }
 
@@ -900,12 +1045,11 @@ export function AlbumTagsSheet(): React.JSX.Element | null {
 
         <div className="chip-row">
           {pending.map((tag) => (
-            <span key={tag} className="chip on">
-              {tag}
-              <button className="x" onClick={() => setPending((p) => p.filter((x) => x !== tag))}>
-                <IconX />
-              </button>
-            </span>
+            <TagChip
+              key={tag}
+              tag={tag}
+              onRemove={() => setPending((p) => p.filter((x) => x !== tag))}
+            />
           ))}
           <input
             className="text-input"
@@ -929,9 +1073,7 @@ export function AlbumTagsSheet(): React.JSX.Element | null {
             <span className="lab">{t.tags}</span>
             <div className="chip-row">
               {known.map((tag) => (
-                <button key={tag} className="chip" onClick={() => setPending((p) => [...p, tag])}>
-                  {tag}
-                </button>
+                <TagChip key={tag} tag={tag} onPick={() => setPending((p) => [...p, tag])} />
               ))}
             </div>
           </div>

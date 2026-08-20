@@ -205,12 +205,20 @@ export function registerRoutes(app: FastifyInstance, onRootsChanged: () => void 
       )
       .get() as { photos: number | null; videos: number | null; hidden: number | null };
 
+    const tagRows = db.prepare(`SELECT name, color FROM tags ORDER BY name`).all() as Array<{
+      name: string;
+      color: number | null;
+    }>;
+    const tagColors: Record<string, number> = {};
+    for (const row of tagRows) {
+      if (row.color !== null) tagColors[row.name] = row.color;
+    }
+
     return {
       settings,
       albums: albumRows(),
-      tags: (db.prepare(`SELECT name FROM tags ORDER BY name`).all() as Array<{ name: string }>).map(
-        (t) => t.name,
-      ),
+      tags: tagRows.map((r) => r.name),
+      tagColors,
       places: distinctPlaces(settings.lang).map((p) => p.city),
       roots: admin ? rootRows() : [],
       isAdmin: admin,
@@ -476,6 +484,53 @@ export function registerRoutes(app: FastifyInstance, onRootsChanged: () => void 
   });
 
   // --------------------------------------------------------------------- tags
+
+  /**
+   * Couleur d'un tag : une teinte 0-359, ou null pour revenir au neutre. On ne
+   * colore que des tags existants — un tag qui ne sert plus à rien est effacé
+   * par le nettoyage, sa couleur avec.
+   */
+  app.post('/api/tags/color', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return;
+    const body = req.body as { name?: string; color?: number | null };
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    if (!name) return reply.code(400).send({ error: 'missing_name' });
+
+    const color =
+      body.color === null || body.color === undefined
+        ? null
+        : ((Math.round(Number(body.color)) % 360) + 360) % 360;
+
+    db.prepare(`UPDATE tags SET color = ? WHERE name = ?`).run(color, name);
+    return { name, color };
+  });
+
+  /**
+   * Quels tags portent déjà les médias sélectionnés ? « all » = présents sur
+   * tous, « some » = sur une partie seulement. Sans ça l'éditeur de tags
+   * s'ouvrait vide et on ne voyait pas ce que la photo avait déjà.
+   */
+  app.get('/api/media/tag-summary', async (req) => {
+    const ids = (parseList((req.query as { ids?: string }).ids) ?? [])
+      .map(Number)
+      .filter((n) => Number.isFinite(n));
+    if (ids.length === 0) return { all: [], some: [] };
+
+    const placeholders = ids.map(() => '?').join(',');
+    const rows = db
+      .prepare(
+        `SELECT t.name, COUNT(DISTINCT mt.media_id) AS n
+           FROM media_tags mt JOIN tags t ON t.id = mt.tag_id
+          WHERE mt.media_id IN (${placeholders})
+          GROUP BY t.id ORDER BY t.name`,
+      )
+      .all(...ids) as Array<{ name: string; n: number }>;
+
+    return {
+      all: rows.filter((r) => r.n === ids.length).map((r) => r.name),
+      some: rows.filter((r) => r.n < ids.length).map((r) => r.name),
+    };
+  });
 
   app.get('/api/tags', async () =>
     (

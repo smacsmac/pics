@@ -53,16 +53,22 @@ export function SearchPanel({ onFocusRow }: PanelProps): React.JSX.Element {
       </div>
       {filters.tags.length > 0 && (
         <div className="chip-row">
-          {filters.tags.map((tag) => (
-            <button
-              key={tag}
-              className="chip on"
-              title={t.remove}
-              onClick={() => setFilters((f) => ({ ...f, tags: f.tags.filter((x) => x !== tag) }))}
-            >
-              {tag}
-            </button>
-          ))}
+          {filters.tags.map((tag) => {
+            const hue = state?.tagColors[tag];
+            return (
+              <button
+                key={tag}
+                // Un tag coloré garde sa couleur ici aussi : on retrouve le
+                // même repère visuel du filtre jusqu'aux photos.
+                className={`chip on${hue === undefined ? '' : ' tag tinted'}`}
+                style={hue === undefined ? undefined : ({ ['--tag-hue' as string]: String(hue) })}
+                title={t.remove}
+                onClick={() => setFilters((f) => ({ ...f, tags: f.tags.filter((x) => x !== tag) }))}
+              >
+                {tag}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

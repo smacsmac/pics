@@ -124,6 +124,10 @@ addColumnIfMissing('albums', 'background_opacity', 'INTEGER NOT NULL DEFAULT 35'
 addColumnIfMissing('media', 'vcodec', 'TEXT');
 addColumnIfMissing('media', 'acodec', 'TEXT');
 
+// Teinte d'un tag, 0-359. NULL = pas de couleur choisie : le tag prend
+// l'apparence neutre, comme avant.
+addColumnIfMissing('tags', 'color', 'INTEGER');
+
 /** L'album « favoris » est un album normal, simplement épinglé et non supprimable. */
 export function ensureFavoritesAlbum(): number {
   const existing = db.prepare(`SELECT id FROM albums WHERE kind = 'favorites'`).get() as
@@ -168,11 +172,17 @@ export function tagId(name: string): number {
   return row.id;
 }
 
-/** Un tag qui n'est plus attaché à rien n'a pas à traîner dans la liste des filtres. */
+/**
+ * Un tag qui n'est plus attaché à rien n'a pas à traîner dans la liste des
+ * filtres. Sauf s'il a reçu une couleur : c'est un choix délibéré, et le perdre
+ * en retirant le tag de sa dernière photo effacerait ce réglage en silence.
+ * Remettre la couleur à « aucune » le rend de nouveau effaçable.
+ */
 export function pruneOrphanTags(): void {
   db.exec(`
     DELETE FROM tags
-    WHERE id NOT IN (SELECT tag_id FROM media_tags)
+    WHERE color IS NULL
+      AND id NOT IN (SELECT tag_id FROM media_tags)
       AND id NOT IN (SELECT tag_id FROM album_tags)
   `);
 }

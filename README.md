@@ -241,8 +241,27 @@ d'un quart de seconde, et le volume remonte à la fermeture.
 
 Les tags s'ajoutent à la main, jamais devinés.
 
-**Sur une photo** : clic droit → *Modifier les tags*. En mode sélection
-multiple, le tag s'applique à toute la sélection d'un coup.
+**Sur une photo** : clic droit → *Modifier les tags*. La fenêtre s'ouvre sur
+**les tags que la photo porte déjà** — un clic sur la croix en retire un, et les
+autres tags de la bibliothèque sont proposés en dessous.
+
+En mode sélection multiple, le tag s'applique à toute la sélection d'un coup.
+Les tags présents sur **une partie seulement** de la sélection apparaissent en
+pointillé : un clic les étend à tout le monde, la croix les retire de tout le
+monde. Les tags communs à toutes les photos, eux, sont pleins.
+
+### Couleurs
+
+Chaque tag peut recevoir sa propre couleur, indépendante de la teinte du thème.
+Passez la souris sur un tag, cliquez la petite palette et choisissez une teinte
+— ou la croix pour revenir au neutre. Le tag devient alors un bouton plein à
+cette couleur, texte blanc, et il garde cette couleur partout : dans l'éditeur,
+dans le sélecteur de tags et sur les filtres actifs de la recherche.
+
+Un tag coloré n'est jamais effacé automatiquement, même s'il ne sert plus à
+aucune photo : la couleur est un choix délibéré, et le perdre en retirant le tag
+de sa dernière photo serait une mauvaise surprise. Remettez sa couleur à
+*aucune* pour qu'il redevienne effaçable.
 
 **Sur un album** : clic droit sur sa carte → *Modifier les tags*, ou **X** à la
 manette quand il est surligné. Le champ *tags* du formulaire *Nouvel album* et

@@ -96,6 +96,11 @@ export interface AppState {
   settings: Settings;
   albums: Album[];
   tags: string[];
+  /**
+   * Teinte choisie pour un tag, 0-359. Un tag absent de la table n'a pas de
+   * couleur et garde l'apparence neutre.
+   */
+  tagColors: Record<string, number>;
   places: string[];
   roots: Root[];
   isAdmin: boolean;
