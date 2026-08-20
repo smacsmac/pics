@@ -47,6 +47,8 @@ avec la même interface, tactile en prime.
 | Cacher (ou retirer de l'album) | **X** | — | bouton ⦰ sur la photo |
 | Plus / moins (mois, volume, thème, taille des vignettes) | **LB** / **RB** | `[` `]` ou `-` `=` | clic |
 | Mode sélection multiple | bouton **Back** | **Alt+S** | clic droit → Sélection |
+| Sélectionner toute une journée | — (voir *Tout sélectionner*) | — | pastille à droite de la date |
+| Refermer une barre latérale | **B** | Échap | clic dans la vue principale |
 | Définir la photo affichée comme couverture | **LS** (clic du stick gauche) | — | Modifier l'album → couverture |
 | Viser un mois dans le curseur de dates | **stick droit ↑ ↓** | Page préc. / Page suiv. | survol |
 | Aller au mois visé | **A** | Entrée | clic |
@@ -58,6 +60,9 @@ surligné : **Chercher** à gauche, **Paramètres** à droite. Elles se posent
 **par-dessus** les photos : la grille occupe toute la largeur de l'écran en
 permanence et ne se décale jamais quand une barre s'ouvre ou se ferme. Par
 défaut, ↑ et ↓ font défiler la chronologie principale.
+
+Pour refermer une barre : **B** ou Échap, ou simplement **un clic dans la vue
+principale** — sur n'importe quel écran.
 
 **LT et RT sont réservées à la barre du haut.** Où que vous soyez — dans les
 filtres, dans les réglages, dans la grille — elles font passer au bouton
@@ -307,6 +312,21 @@ puis la lecture devient normale — et instantanée les fois suivantes.
   recopié dans un `.mp4`, sans réencodage : quelques secondes, aucune perte.
 * Une seule conversion à la fois, pour ne pas monopoliser le PC.
 * Ce dossier peut être supprimé sans risque : les copies se refont au besoin.
+
+## Sélection multiple
+
+**Back** à la manette, **Alt+S** au clavier, ou clic droit → *Sélection*. Une
+pastille apparaît alors sur chaque photo : cochez celles qui vous intéressent,
+puis *Ajouter à un album*, *Modifier les tags* ou *Cacher* s'appliquent à toute
+la sélection d'un coup.
+
+**Une journée entière** se prend d'un seul geste : la même pastille apparaît à
+droite de chaque date. Un clic coche toute la journée, un second la relâche.
+Quand une partie seulement de la journée est cochée, la pastille est à demi
+remplie — on voit d'un coup d'œil qu'il reste des photos à prendre. Ça marche
+dans les deux dispositions, par jour comme condensée.
+
+**B** ou Échap quitte le mode sélection.
 
 ## Cacher plutôt que supprimer
 

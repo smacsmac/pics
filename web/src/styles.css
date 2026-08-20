@@ -587,6 +587,27 @@ input { background: none; border: none; outline: none; }
 .pick-dot.on { background: var(--accent); border-color: #fff; }
 .pick-dot svg { width: 12px; height: 12px; color: #08080c; }
 
+/* La même pastille, mais posée dans l'en-tête d'une journée : elle prend ou
+   relâche la journée entière. Inline et non absolue, contrairement à celle des
+   photos, pour se ranger à la suite du titre. */
+.pick-dot.day {
+  position: static;
+  margin-left: 10px;
+  vertical-align: middle;
+  flex: 0 0 auto;
+  cursor: pointer;
+  transition: transform 0.12s, background 0.14s, border-color 0.14s;
+}
+
+.pick-dot.day:hover { transform: scale(1.15); border-color: #fff; }
+
+/* Journée à moitié prise : un point plein, sans coche. On voit d'un coup d'œil
+   qu'il reste des photos à cocher dans cette journée. */
+.pick-dot.day.part { background: color-mix(in oklab, var(--accent) 45%, transparent); }
+
+.day-head { display: flex; align-items: center; }
+.compact-day .lab { display: inline-flex; align-items: center; }
+
 /* Les trois actions Y / X / A du croquis, disposées en cercle sur la photo. */
 .tile-actions {
   position: absolute;

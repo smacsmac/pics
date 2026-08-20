@@ -1045,7 +1045,16 @@ export function App(): React.JSX.Element {
           />
         )}
 
-        <main className="stage">
+        <main
+          className="stage"
+          // Un clic dans la vue principale referme la barre ouverte. Seule la
+          // chronologie le faisait, par accident : ses tuiles reprennent le
+          // focus. Ailleurs — grille d'albums, formulaire — rien ne le prenait,
+          // et la barre restait posée sur l'écran.
+          onPointerDown={() => {
+            if (showLeft || showRight) setNav((n) => ({ ...n, zone: 'content' }));
+          }}
+        >
           {currentAlbum?.background && (
             <div
               className="album-bg"

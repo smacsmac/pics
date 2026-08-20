@@ -24,7 +24,7 @@ interface Props {
 }
 
 export function Timeline({ feed, inAlbum, zoom, onAction, onColumns, scrollRef }: Props): React.JSX.Element {
-  const { nav, settings, selectMode, selection, setNav, toggleSelection, t } = useStore();
+  const { nav, settings, selectMode, selection, setNav, setSelection, toggleSelection, t } = useStore();
   const gridRef = useRef<HTMLDivElement | null>(null);
   const [cols, setCols] = useState(6);
 
@@ -102,6 +102,32 @@ export function Timeline({ feed, inAlbum, zoom, onAction, onColumns, scrollRef }
     />
   );
 
+  /**
+   * Pastille de sélection d'une journée entière. Cochée quand toute la journée
+   * est prise ; un clic prend le reste, un second clic relâche la journée.
+   */
+  const dayPick = (items: MediaItem[]): React.JSX.Element | null => {
+    if (!selectMode) return null;
+    const ids = items.map((i) => i.id);
+    const chosen = new Set(selection);
+    const all = ids.length > 0 && ids.every((id) => chosen.has(id));
+    const some = !all && ids.some((id) => chosen.has(id));
+
+    return (
+      <button
+        className={`pick-dot day${all ? ' on' : some ? ' part' : ''}`}
+        title={all ? t.clearSelection : t.selectAll}
+        onClick={(e) => {
+          e.stopPropagation();
+          const others = selection.filter((id) => !ids.includes(id));
+          setSelection(all ? others : [...others, ...ids]);
+        }}
+      >
+        {all && <IconCheck />}
+      </button>
+    );
+  };
+
   const footer = (
     <>
       {feed.loading && <div className="mini" style={{ padding: '12px 2px' }}>{t.loading}</div>}
@@ -131,7 +157,10 @@ export function Timeline({ feed, inAlbum, zoom, onAction, onColumns, scrollRef }
                 className={`compact-day${holdsFocus ? ' current' : ''}`}
                 style={{ width }}
               >
-                <span className="lab">{formatShortDay(section.day, settings.lang)}</span>
+                <span className="lab">
+                  {formatShortDay(section.day, settings.lang)}
+                  {dayPick(section.items)}
+                </span>
                 <div
                   className="compact-grid"
                   style={{ gridTemplateColumns: `repeat(${perRow}, ${tileWidth}px)` }}
@@ -163,6 +192,7 @@ export function Timeline({ feed, inAlbum, zoom, onAction, onColumns, scrollRef }
             <h2 className="day-head">
               {formatDayHeading(section.day, settings.lang)}
               <span className="cnt">{section.items.length}</span>
+              {dayPick(section.items)}
             </h2>
             <div
               className="grid"
