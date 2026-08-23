@@ -143,7 +143,12 @@ async function videoFrame(file: string, seconds: number): Promise<Buffer | null>
  * Fabrique les trois tailles de vignette d'un média. Renvoie false si le fichier
  * est illisible, pour qu'on arrête d'y revenir à chaque scan.
  */
-export async function makeThumbs(id: number, file: string, kind: 'photo' | 'video'): Promise<boolean> {
+export async function makeThumbs(
+  id: number,
+  file: string,
+  kind: 'photo' | 'video',
+  rotation = 0,
+): Promise<boolean> {
   let source: Buffer | null;
   if (kind === 'video') {
     // Une frame à 1 s : la toute première est souvent noire.
@@ -157,12 +162,17 @@ export async function makeThumbs(id: number, file: string, kind: 'photo' | 'vide
     }
   }
 
+  // L'orientation EXIF est appliquée à la lecture (autoOrient), la rotation
+  // choisie à la main vient par-dessus. Deux .rotate() enchaînés ne
+  // s'additionnent pas : le second remplacerait le premier.
+  const turn = (((rotation % 360) + 360) % 360);
+
   try {
     for (const size of THUMB_SIZES) {
       const dest = thumbPath(id, size);
       await fs.promises.mkdir(path.dirname(dest), { recursive: true });
-      await sharp(source, { failOn: 'none' })
-        .rotate() // applique l'orientation EXIF
+      await sharp(source, { failOn: 'none', autoOrient: true })
+        .rotate(turn)
         .resize({ width: size, height: size, fit: 'inside', withoutEnlargement: true })
         .webp({ quality: size >= 960 ? 82 : 74, effort: 3 })
         .toFile(dest);

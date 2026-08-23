@@ -27,10 +27,12 @@ interface MediaRow {
   place_country: string | null;
   camera: string | null;
   hidden: number;
+  rotation: number;
 }
 
 const SELECT_COLS = `m.id, m.kind, m.filename, m.taken_at, m.taken_source, m.width, m.height,
-  m.duration, m.bytes, m.place_city, m.place_admin, m.place_country, m.camera, m.hidden`;
+  m.duration, m.bytes, m.place_city, m.place_admin, m.place_country, m.camera, m.hidden,
+  m.rotation`;
 
 function buildWhere(f: Filters): { sql: string; params: unknown[]; joins: string } {
   const where: string[] = ['m.missing = 0'];
@@ -63,11 +65,10 @@ function buildWhere(f: Filters): { sql: string; params: unknown[]; joins: string
     //
     // Un tag posé sur un album vaut pour toutes ses photos : taguer un album
     // « taekwondo » suffit à retrouver ses photos depuis l'accueil, sans avoir
-    // à taguer chaque photo une par une. L'UNION dédoublonne le cas où la photo
-    // porte déjà le tag de son côté.
-    // Un EXISTS par tag demandé, tous obligatoires. Plus direct qu'un
-    // COUNT(DISTINCT) sur l'union : EXISTS s'arrête au premier résultat au lieu
-    // de bâtir un index temporaire pour chaque photo examinée.
+    // à taguer chaque photo une par une.
+    //
+    // Un EXISTS par tag, tous obligatoires : la recherche s'arrête au premier
+    // résultat trouvé, sans bâtir d'index temporaire par photo examinée.
     for (const tag of f.tags) {
       where.push(`(
         EXISTS (
@@ -146,6 +147,7 @@ function decorate(rows: MediaRow[], lang: Lang): MediaItem[] {
     city: r.place_city,
     camera: r.camera,
     hidden: r.hidden === 1,
+    rotation: r.rotation ?? 0,
     favorite: favorites.has(r.id),
     tags: tagsById.get(r.id) ?? [],
     // Ce que la photo porte déjà en propre n'est pas répété comme hérité.

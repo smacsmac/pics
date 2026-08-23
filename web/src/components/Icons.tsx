@@ -175,3 +175,27 @@ export const IconGamepad = (p: P) => (
     <path d="M7 11.4v2.4M5.8 12.6h2.4" {...S} /><circle cx="16.4" cy="12.4" r="0.9" fill="currentColor" />
   </Svg>
 );
+
+/** Rotation d'un quart de tour : une flèche qui boucle. */
+export const IconRotate = (p: P) => (
+  <Svg {...p}>
+    <path d="M20 12a8 8 0 1 1-2.6-5.9" {...S} />
+    <path d="M20 4.4V9h-4.6" {...S} />
+  </Svg>
+);
+
+/** Épingle : l'album reste en tête de la grille. */
+export const IconPin = (p: P) => (
+  <Svg {...p}>
+    <path d="M12 15.4V21" {...S} />
+    <path d="M8.2 3.6h7.6l-1 4.2 2.6 2.6v1.6H6.6V10.4l2.6-2.6z" {...S} />
+  </Svg>
+);
+
+/** Tri : trois barres décroissantes avec une flèche. */
+export const IconSort = (p: P) => (
+  <Svg {...p}>
+    <path d="M4 7h10M4 12h7M4 17h4" {...S} />
+    <path d="M17.5 7v10M17.5 17l2.5-2.6M17.5 17L15 14.4" {...S} />
+  </Svg>
+);

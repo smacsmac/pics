@@ -16,6 +16,7 @@ export type Action =
   | 'inc'       // RB
   | 'selectMode' // Back/Select · Alt+S
   | 'setCover'   // clic du stick gauche (LS)
+  | 'rotate'     // clic du stick droit (RS)
   // Stick droit (RS) : vise un mois dans le curseur de dates, sans y aller.
   // Le déplacement ne se fait qu'une fois A confirmé.
   | 'scrubPrev' | 'scrubNext'
@@ -68,6 +69,8 @@ const KEY_MAP: Record<string, Action> = {
   ']': 'inc',
   '-': 'dec',
   '=': 'inc',
+  r: 'rotate',
+  R: 'rotate',
   // Équivalents clavier du stick droit, pour qui n'a pas de manette.
   PageUp: 'scrubPrev',
   PageDown: 'scrubNext',
@@ -95,6 +98,7 @@ const BUTTON_ACTIONS: Array<[number, Action]> = [
   [PAD.RT, 'tabNext'],
   [PAD.BACK, 'selectMode'],
   [PAD.L3, 'setCover'],
+  [PAD.R3, 'rotate'],
   [PAD.START, 'start'],
   [PAD.DUP, 'up'],
   [PAD.DDOWN, 'down'],

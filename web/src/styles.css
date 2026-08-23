@@ -1131,6 +1131,14 @@ input { background: none; border: none; outline: none; }
 .viewer img { max-width: 100vw; max-height: 100vh; }
 .viewer video { max-width: 100vw; max-height: 100vh; }
 
+/* Photo tournée à la main. Le fichier reste intact : c'est l'affichage qui
+   tourne. À un quart de tour, la photo occupe la hauteur en largeur et
+   inversement — d'où les bornes croisées, sans quoi elle déborderait. */
+.viewer img.rot { transition: transform 0.18s ease; }
+.viewer img.rot90 { transform: rotate(90deg); max-width: 100vh; max-height: 100vw; }
+.viewer img.rot180 { transform: rotate(180deg); }
+.viewer img.rot270 { transform: rotate(270deg); max-width: 100vh; max-height: 100vw; }
+
 .viewer-hint {
   position: absolute;
   bottom: 22px;

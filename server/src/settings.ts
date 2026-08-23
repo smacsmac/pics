@@ -1,7 +1,8 @@
-import type { Settings, ZoomKey, ZoomLevels } from '../../shared/types.js';
+import type { AlbumSort, Settings, ZoomKey, ZoomLevels } from '../../shared/types.js';
 import { getSetting, setSetting } from './db.js';
 
 const ZOOM_KEYS: ZoomKey[] = ['timeline', 'videos', 'album', 'albums'];
+const ALBUM_SORTS: AlbumSort[] = ['recent', 'name', 'yearDesc', 'yearAsc'];
 
 export const DEFAULT_SETTINGS: Settings = {
   fontScale: 2,
@@ -11,6 +12,7 @@ export const DEFAULT_SETTINGS: Settings = {
   zoom: { timeline: 2, videos: 2, album: 2, albums: 2 },
   showHidden: false,
   layout: 'day',
+  albumSort: 'recent',
   // Ouvert par défaut : l'intérêt est justement que n'importe quel appareil du
   // Wi-Fi puisse envoyer ses photos sans connaître le mot de passe.
   uploadRequiresAdmin: false,
@@ -44,6 +46,9 @@ export function getSettings(): Settings {
     zoom: readZoom(stored),
     showHidden: stored.showHidden === true,
     layout: stored.layout === 'compact' ? 'compact' : 'day',
+    albumSort: ALBUM_SORTS.includes(stored.albumSort as AlbumSort)
+      ? (stored.albumSort as AlbumSort)
+      : DEFAULT_SETTINGS.albumSort,
     uploadRequiresAdmin: stored.uploadRequiresAdmin === true,
   };
 }

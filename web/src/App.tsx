@@ -4,12 +4,12 @@ import {
   AlbumForm, AlbumMusic, AlbumsGrid, albumFields, clampPercent, type AlbumDraft,
 } from './components/Albums';
 import {
-  IconCompact, IconGamepad, IconKey, IconPencil, IconRows, IconSelect, IconX, IconZoomIn,
+  IconCompact, IconGamepad, IconKey, IconPencil, IconRows, IconSelect, IconSort, IconX, IconZoomIn,
   IconZoomOut,
 } from './components/Icons';
 import {
   AddToAlbumSheet, AdminSheet, AlbumContextMenu, AlbumTagsSheet, ContextMenu, FoldersSheet,
-  MonthPickerSheet, Osk, PlacePickerSheet, TagEditorSheet, TagPickerSheet, Toasts,
+  AlbumSortSheet, MonthPickerSheet, Osk, PlacePickerSheet, TagEditorSheet, TagPickerSheet, Toasts,
   type AlbumMenuTarget, type MenuTarget,
 } from './components/Overlays';
 import { SearchPanel, SettingsPanel, displayMonth } from './components/Panels';
@@ -99,17 +99,21 @@ export function App(): React.JSX.Element {
   // dentée, donc toute la navigation de la barre du haut en dépend.
   // Boutons de l'en-tête : zoom seul sur la grille d'albums, zoom + disposition
   // sur les vues de photos. La navigation manette lit ce même compte.
-  const headCount = isMediaView ? 4 : view.kind === 'albums' ? 2 : 0;
+  const headCount = isMediaView ? 4 : view.kind === 'albums' ? 3 : 0;
   const headFocus = nav.zone === 'head' ? Math.min(nav.headIndex, headCount - 1) : -1;
 
   const pressHead = useCallback(
     (index: number) => {
       if (index === 0) setZoom(zoom - 1);
       else if (index === 1) setZoom(zoom + 1);
-      else if (index === 2) patchSettings({ layout: 'day' });
-      else if (index === 3) patchSettings({ layout: 'compact' });
+      // Sur l'écran Albums, la 3e place est l'ordre de la grille ; ailleurs
+      // c'est la bascule de disposition.
+      else if (index === 2) {
+        if (view.kind === 'albums') setSheet({ kind: 'albumSort' });
+        else patchSettings({ layout: 'day' });
+      } else if (index === 3) patchSettings({ layout: 'compact' });
     },
-    [setZoom, zoom, patchSettings],
+    [setZoom, zoom, patchSettings, view.kind, setSheet],
   );
 
   const recentVisible = Math.max(0, Math.min(recentSlots, recentAlbums.length - recentOffset));
@@ -298,6 +302,31 @@ export function App(): React.JSX.Element {
     setViewerPlaying(false);
     setViewerInfo(false);
   }, []);
+
+  /**
+   * Tourne une photo d'un quart de tour. Le fichier d'origine n'est jamais
+   * modifié : le serveur note l'angle et refait la vignette.
+   */
+  const doRotate = useCallback(
+    async (item?: MediaItem) => {
+      const ids = targetIds(item).filter((id) => {
+        const found = feed.items.find((i) => i.id === id);
+        return found?.kind === 'photo';
+      });
+      if (ids.length === 0) return;
+      if (!requireAdmin()) return;
+      await api.rotate(ids, 90);
+      // On applique l'angle tout de suite à l'écran, sans attendre que le
+      // serveur ait refait la vignette : l'angle fait partie de son URL, donc
+      // la nouvelle image sera demandée dès qu'elle existe.
+      for (const id of ids) {
+        const current = feed.items.find((i) => i.id === id);
+        if (current) feed.patchItems([id], { rotation: (current.rotation + 90) % 360 });
+      }
+      toast(t.rotated);
+    },
+    [targetIds, requireAdmin, feed, toast, t.rotated],
+  );
 
   /** Ancre la chronologie sur un mois : à la souris comme à la manette. */
   const pickMonth = useCallback(
@@ -568,6 +597,10 @@ export function App(): React.JSX.Element {
             break;
           case 'actionX':
             void doRemoveOrHide(item);
+            break;
+          case 'rotate':
+            // RS tourne la photo affichée d'un quart de tour.
+            void doRotate(item);
             break;
           case 'setCover':
             // LS désigne la photo affichée comme couverture de l'album courant.
@@ -956,6 +989,7 @@ export function App(): React.JSX.Element {
         x: event.clientX,
         y: event.clientY,
         mediaId,
+        kind: item.kind,
         inAlbum: view.kind === 'album' ? view.id : null,
         hidden: item.hidden,
         favorite: item.favorite,
@@ -1105,6 +1139,19 @@ export function App(): React.JSX.Element {
                   >
                     <IconZoomIn />
                   </button>
+                  {view.kind === 'albums' && (
+                    <>
+                      <span className="head-sep" />
+                      <button
+                        className={headFocus === 2 ? 'on' : ''}
+                        title={t.sortAlbums}
+                        aria-label={t.sortAlbums}
+                        onClick={() => setSheet({ kind: 'albumSort' })}
+                      >
+                        <IconSort />
+                      </button>
+                    </>
+                  )}
                   {isMediaView && (
                     <>
                       <span className="head-sep" />
@@ -1346,6 +1393,10 @@ export function App(): React.JSX.Element {
             }
             setMenu(null);
           }}
+          onRotate={() => {
+            void doRotate(menuItem);
+            setMenu(null);
+          }}
         />
       )}
 
@@ -1365,6 +1416,13 @@ export function App(): React.JSX.Element {
             if (requireAdmin()) setAlbumTagsFor(albumMenu.albumId);
             setAlbumMenu(null);
           }}
+          onTogglePin={() => {
+            const album = albums.find((a) => a.id === albumMenu.albumId);
+            if (album && requireAdmin()) {
+              void api.updateAlbum(album.id, { pinned: !album.pinned }).then(refresh);
+            }
+            setAlbumMenu(null);
+          }}
         />
       )}
 
@@ -1377,6 +1435,7 @@ export function App(): React.JSX.Element {
       <AddToAlbumSheet />
       <TagEditorSheet />
       <AlbumTagsSheet />
+      <AlbumSortSheet />
       <Osk />
       <Toasts />
     </div>

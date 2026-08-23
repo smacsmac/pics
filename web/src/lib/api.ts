@@ -75,7 +75,7 @@ export const api = {
     body: Partial<{
       name: string; color: number; musicSlot: number | null; videoMusicPct: number;
       background: string | null; backgroundOpacity: number;
-      coverMediaId: number | null; tags: string[];
+      coverMediaId: number | null; tags: string[]; pinned: boolean;
     }>,
   ) => request<Album>(`/api/albums/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
 
@@ -170,13 +170,25 @@ export const api = {
   tagSummary: (ids: number[]) =>
     request<{ all: string[]; some: string[] }>(`/api/media/tag-summary?ids=${ids.join(',')}`),
 
+  rotate: (ids: number[], delta = 90) =>
+    request<{ changed: number }>('/api/media/rotate', {
+      method: 'POST',
+      body: JSON.stringify({ ids, delta }),
+    }),
+
   setTagColor: (name: string, color: number | null) =>
     request<{ name: string; color: number | null }>('/api/tags/color', {
       method: 'POST',
       body: JSON.stringify({ name, color }),
     }),
 
-  thumbUrl: (id: number, size: number) => `/api/thumb/${id}?s=${size}`,
+  /**
+   * Les vignettes sont mises en cache « pour toujours » par le navigateur.
+   * Tourner une photo en refait une nouvelle sous le même nom : l'angle entre
+   * donc dans l'URL, sinon l'ancienne image resterait affichée.
+   */
+  thumbUrl: (id: number, size: number, rotation = 0) =>
+    `/api/thumb/${id}?s=${size}${rotation ? `&r=${rotation}` : ''}`,
   fileUrl: (id: number) => `/api/file/${id}`,
   musicUrl: (slot: number) => `/api/music/${slot}`,
 };

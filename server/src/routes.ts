@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import type { Album, AppState, Root, UploadResult } from '../../shared/types.js';
+import type { Album, AlbumSort, AppState, Root, UploadResult } from '../../shared/types.js';
 import {
   drainInbox, ensureTempDir, fileIntoLibrary, importRoot, isKnownNameSize, safeName, TEMP_DIR,
 } from './import.js';
@@ -59,12 +59,53 @@ function filtersFrom(query: Record<string, unknown>, admin: boolean): Filters {
   };
 }
 
+/**
+ * Année écrite dans le nom d'un album (« Vacances 2026 » → 2026). C'est ainsi
+ * que les albums sont nommés en pratique, et ça vaut mieux que la date de
+ * création pour les ranger. Sans année lisible, l'album passe en fin de liste.
+ */
+function yearInName(name: string): number | null {
+  // Encadré par des non-chiffres : sans ça « Sortie 662068 » se lirait 2068.
+  const matches = name.match(/(?<!\d)(?:19|20)\d{2}(?!\d)/g);
+  if (!matches) return null;
+  // Le dernier : « Noël 2025 chez mamie 2024 » reste un cas tordu, mais le plus
+  // souvent l'année finale est la bonne.
+  return Number(matches[matches.length - 1]);
+}
+
+function sortAlbums(albums: Album[], order: AlbumSort): Album[] {
+  const byName = (a: Album, b: Album): number => a.name.localeCompare(b.name, undefined, { numeric: true });
+
+  const compare = (a: Album, b: Album): number => {
+    if (order === 'name') return byName(a, b);
+    if (order === 'yearDesc' || order === 'yearAsc') {
+      const ya = yearInName(a.name);
+      const yb = yearInName(b.name);
+      // Les albums sans année ne se mélangent pas aux autres : ils suivent.
+      if (ya === null && yb === null) return byName(a, b);
+      if (ya === null) return 1;
+      if (yb === null) return -1;
+      if (ya !== yb) return order === 'yearDesc' ? yb - ya : ya - yb;
+      return byName(a, b);
+    }
+    return b.updatedAt - a.updatedAt;
+  };
+
+  // Les favoris d'abord, puis les épinglés, puis le tri demandé.
+  return [...albums].sort((a, b) => {
+    if ((a.kind === 'favorites') !== (b.kind === 'favorites')) return a.kind === 'favorites' ? -1 : 1;
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+    return compare(a, b);
+  });
+}
+
 function albumRows(): Album[] {
   const rows = db
     .prepare(
       `SELECT a.id, a.name, a.color, a.music_slot AS musicSlot, a.kind,
               a.video_music_pct AS videoMusicPct,
               a.background, a.background_opacity AS backgroundOpacity,
+              a.pinned,
               a.created_at AS createdAt, a.updated_at AS updatedAt,
               -- Sans couverture choisie, on prend la photo la plus récente de l'album.
               COALESCE(a.cover_media_id, (
@@ -75,10 +116,9 @@ function albumRows(): Album[] {
               )) AS coverMediaId,
               (SELECT COUNT(*) FROM album_media am JOIN media m ON m.id = am.media_id
                 WHERE am.album_id = a.id AND m.missing = 0) AS count
-       FROM albums a
-       ORDER BY a.kind = 'favorites' DESC, a.updated_at DESC`,
+       FROM albums a`,
     )
-    .all() as Array<Omit<Album, 'tags'>>;
+    .all() as Array<Omit<Album, 'tags' | 'pinned'> & { pinned: number }>;
 
   const tagRows = db
     .prepare(
@@ -93,7 +133,12 @@ function albumRows(): Album[] {
     else byAlbum.set(row.id, [row.name]);
   }
 
-  return rows.map((a) => ({ ...a, tags: byAlbum.get(a.id) ?? [] }));
+  const albums = rows.map((a) => ({
+    ...a,
+    pinned: a.pinned === 1,
+    tags: byAlbum.get(a.id) ?? [],
+  }));
+  return sortAlbums(albums, getSettings().albumSort);
 }
 
 const BACKGROUND_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.avif', '.bmp']);
@@ -394,7 +439,7 @@ export function registerRoutes(app: FastifyInstance, onRootsChanged: () => void 
     const body = req.body as {
       name?: string; color?: number; musicSlot?: number | null; videoMusicPct?: number;
       background?: string | null; backgroundOpacity?: number;
-      coverMediaId?: number | null; tags?: string[];
+      coverMediaId?: number | null; tags?: string[]; pinned?: boolean;
     };
     const album = db.prepare(`SELECT id, kind FROM albums WHERE id = ?`).get(id) as
       | { id: number; kind: string }
@@ -433,6 +478,10 @@ export function registerRoutes(app: FastifyInstance, onRootsChanged: () => void 
     if (body.coverMediaId !== undefined) {
       sets.push('cover_media_id = ?');
       params.push(body.coverMediaId);
+    }
+    if (body.pinned !== undefined) {
+      sets.push('pinned = ?');
+      params.push(body.pinned ? 1 : 0);
     }
     sets.push('updated_at = ?');
     params.push(Date.now(), id);
@@ -530,6 +579,37 @@ export function registerRoutes(app: FastifyInstance, onRootsChanged: () => void 
       all: rows.filter((r) => r.n === ids.length).map((r) => r.name),
       some: rows.filter((r) => r.n < ids.length).map((r) => r.name),
     };
+  });
+
+  /**
+   * Tourner une photo d'un quart de tour. Le fichier d'origine n'est jamais
+   * réécrit : on note l'angle, on refait les vignettes, et l'affichage
+   * l'applique. Une photo tournée par erreur se remet droite en tournant
+   * jusqu'au bout, sans aucune perte de qualité.
+   */
+  app.post('/api/media/rotate', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return;
+    const body = req.body as { ids?: number[]; delta?: number };
+    const ids = (body.ids ?? []).filter((n) => Number.isFinite(n));
+    if (ids.length === 0) return { changed: 0 };
+
+    // Un quart de tour par défaut, dans le sens des aiguilles d'une montre.
+    const step = Number.isFinite(body.delta) ? Math.round(Number(body.delta) / 90) * 90 : 90;
+
+    const read = db.prepare(`SELECT rotation, kind FROM media WHERE id = ?`);
+    const write = db.prepare(`UPDATE media SET rotation = ?, thumb_state = 'pending' WHERE id = ?`);
+    let changed = 0;
+    for (const id of ids) {
+      const row = read.get(id) as { rotation: number; kind: string } | undefined;
+      // Les vidéos garderaient leur orientation d'origine à la lecture : les
+      // tourner ne donnerait qu'une vignette de travers par rapport au film.
+      if (!row || row.kind !== 'photo') continue;
+      write.run((((row.rotation + step) % 360) + 360) % 360, id);
+      changed++;
+    }
+    // Les vignettes marquées « pending » sont refaites par le scan.
+    if (changed > 0) void scan();
+    return { changed };
   });
 
   app.get('/api/tags', async () =>

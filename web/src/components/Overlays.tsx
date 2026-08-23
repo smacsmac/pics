@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Root } from '../../../shared/types';
+import type { AlbumSort, Root } from '../../../shared/types';
 import { api, ApiError } from '../lib/api';
 import { LANGS, monthNames } from '../lib/i18n';
 import { useInput } from '../lib/input';
 import { HUES } from '../lib/panels';
 import { useStore } from '../lib/store';
 import {
-  IconCheck, IconExpand, IconHeart, IconHide, IconPalette, IconPencil, IconPlus, IconSelect, IconTag,
-  IconTrash, IconX,
+  IconCheck, IconExpand, IconHeart, IconHide, IconPalette, IconPencil, IconPin, IconPlus, IconRotate,
+  IconSelect, IconTag, IconTrash, IconX,
 } from './Icons';
 
 /** Enferme le curseur d'une liste dans ses bornes, avec bouclage. */
@@ -831,12 +831,88 @@ export function TagChip({
   );
 }
 
+/** Ordre de la grille d'albums. Les épinglés restent en tête quoi qu'il arrive. */
+export function AlbumSortSheet(): React.JSX.Element | null {
+  const { sheet, setSheet, settings, patchSettings, refresh, t } = useStore();
+  const open = sheet?.kind === 'albumSort';
+  const options = useMemo(
+    () =>
+      [
+        { id: 'recent', label: t.sortRecent },
+        { id: 'name', label: t.sortName },
+        { id: 'yearDesc', label: t.sortYearDesc },
+        { id: 'yearAsc', label: t.sortYearAsc },
+      ] as Array<{ id: AlbumSort; label: string }>,
+    [t.sortRecent, t.sortName, t.sortYearDesc, t.sortYearAsc],
+  );
+  const [cursor, setCursor] = useState(0);
+
+  useEffect(() => {
+    if (!open) return;
+    const found = options.findIndex((o) => o.id === settings.albumSort);
+    setCursor(found >= 0 ? found : 0);
+  }, [open, options, settings.albumSort]);
+
+  const commit = useCallback(
+    (index: number) => {
+      const option = options[index];
+      if (option) {
+        patchSettings({ albumSort: option.id });
+        // Le tri est appliqué par le serveur : sans ce rafraîchissement la
+        // grille garderait l'ordre précédent jusqu'au prochain scan.
+        void api.saveSettings({ albumSort: option.id }).then(refresh).catch(() => {});
+      }
+      setSheet(null);
+    },
+    [options, patchSettings, refresh, setSheet],
+  );
+
+  useInput(
+    useCallback(
+      (action) => {
+        if (!open) return false;
+        if (action === 'up' || action === 'dec') setCursor((c) => wrap(c - 1, options.length));
+        else if (action === 'down' || action === 'inc') setCursor((c) => wrap(c + 1, options.length));
+        else if (action === 'confirm') commit(cursor);
+        else if (action === 'back') setSheet(null);
+        return true;
+      },
+      [open, options.length, cursor, commit, setSheet],
+    ),
+    open,
+  );
+
+  if (!open) return null;
+
+  return (
+    <div className="overlay" onClick={() => setSheet(null)}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-title">{t.sortAlbums}</div>
+        <div className="option-list">
+          {options.map((option, i) => (
+            <button
+              key={option.id}
+              className={`option${i === cursor ? ' on' : ''}`}
+              onClick={() => commit(i)}
+            >
+              <span className="n">{option.label}</span>
+              {settings.albumSort === option.id && <IconCheck />}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ------------------------------------------------------------ menu contextuel
 
 export interface MenuTarget {
   x: number;
   y: number;
   mediaId: number;
+  /** Une vidéo n'offre pas la rotation. */
+  kind: 'photo' | 'video';
   inAlbum: number | null;
   hidden: boolean;
   favorite: boolean;
@@ -853,6 +929,7 @@ export function ContextMenu({
   onSelectMode,
   onRemoveFromAlbum,
   onSetCover,
+  onRotate,
 }: {
   target: MenuTarget;
   onClose: () => void;
@@ -864,6 +941,7 @@ export function ContextMenu({
   onSelectMode: () => void;
   onRemoveFromAlbum: () => void;
   onSetCover: () => void;
+  onRotate: () => void;
 }): React.JSX.Element {
   const { t } = useStore();
 
@@ -904,6 +982,13 @@ export function ContextMenu({
       <button className="menu-item" onClick={onEditTags}>
         <IconTag /> {t.editTags}
       </button>
+      {/* Les vidéos gardent leur orientation à la lecture : les tourner ne
+          ferait qu'une vignette de travers par rapport au film. */}
+      {target.kind === 'photo' && (
+        <button className="menu-item" onClick={onRotate}>
+          <IconRotate /> {t.rotate}
+        </button>
+      )}
       {target.inAlbum !== null && (
         <>
           <button className="menu-item" onClick={onSetCover}>
@@ -934,12 +1019,14 @@ export function AlbumContextMenu({
   onOpen,
   onEdit,
   onEditTags,
+  onTogglePin,
 }: {
   target: AlbumMenuTarget;
   onClose: () => void;
   onOpen: () => void;
   onEdit: () => void;
   onEditTags: () => void;
+  onTogglePin: () => void;
 }): React.JSX.Element {
   const { t, state } = useStore();
   const album = state?.albums.find((a) => a.id === target.albumId);
@@ -965,6 +1052,12 @@ export function AlbumContextMenu({
         <IconExpand /> {t.open}
       </button>
       <div className="menu-sep" />
+      {/* Les favoris sont déjà en tête d'office : rien à épingler. */}
+      {album?.kind !== 'favorites' && (
+        <button className="menu-item" onClick={onTogglePin}>
+          <IconPin /> {album?.pinned ? t.unpin : t.pin}
+        </button>
+      )}
       <button className="menu-item" onClick={onEditTags}>
         <IconTag /> {t.editTags}
       </button>

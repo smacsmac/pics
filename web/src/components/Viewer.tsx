@@ -76,13 +76,21 @@ export function Viewer({
           // Sans URL on ne met rien : une balise vidéo pointée sur un fichier
           // que le navigateur ne sait pas décoder n'affiche qu'une image figée.
           src={playback?.url ?? undefined}
-          poster={api.thumbUrl(item.id, 960)}
+          poster={api.thumbUrl(item.id, 960, item.rotation)}
           controls={playing}
           playsInline
           onClick={(e) => e.stopPropagation()}
         />
       ) : (
-        <img src={api.fileUrl(item.id)} alt={item.filename} draggable={false} />
+        // La rotation est appliquée à l'affichage : le fichier d'origine n'est
+        // jamais réécrit. À 90 et 270 degrés les bornes se croisent, sinon la
+        // photo tournée déborderait de l'écran.
+        <img
+          className={item.rotation ? `rot rot${item.rotation}` : undefined}
+          src={api.fileUrl(item.id)}
+          alt={item.filename}
+          draggable={false}
+        />
       )}
 
       {showInfo && (

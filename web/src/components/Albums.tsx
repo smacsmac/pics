@@ -185,7 +185,7 @@ export function AlbumForm({
                 <button
                   key={item.id}
                   className={`cover-chip${draft.coverMediaId === item.id ? ' on' : ''}`}
-                  style={{ backgroundImage: `url(${api.thumbUrl(item.id, 240)})` }}
+                  style={{ backgroundImage: `url(${api.thumbUrl(item.id, 240, item.rotation)})` }}
                   title={item.filename}
                   onClick={() => setDraft((d) => ({ ...d, coverMediaId: item.id }))}
                 />

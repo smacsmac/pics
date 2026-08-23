@@ -239,7 +239,7 @@ function Tile({
     >
       {!broken ? (
         <img
-          src={api.thumbUrl(item.id, size)}
+          src={api.thumbUrl(item.id, size, item.rotation)}
           alt={item.filename}
           loading="lazy"
           decoding="async"

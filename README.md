@@ -53,6 +53,8 @@ avec la même interface, tactile en prime.
 | Viser un mois dans le curseur de dates | **stick droit ↑ ↓** | Page préc. / Page suiv. | survol |
 | Aller au mois visé | **A** | Entrée | clic |
 | Tags d'un album (sur sa carte) | **X** | — | clic droit → Modifier les tags |
+| Épingler un album en haut | — | — | clic droit → Épingler en haut |
+| Tourner une photo d'un quart de tour | **RS** (clic du stick droit) | **R** | clic droit → Tourner |
 | Menu contextuel | — | — | clic droit |
 
 Les deux barres verticales n'apparaissent que lorsque leur bouton est
@@ -193,6 +195,23 @@ donne trois colonnes au lieu de deux, sans quoi l'écran serait à moitié vide.
 
 Créez, renommez, changez la couleur ou la musique, supprimez l'album — les
 photos, elles, restent dans la bibliothèque.
+
+### Ranger la grille d'albums
+
+Quand les albums se comptent par dizaines, deux outils :
+
+* **Épingler** — clic droit sur une carte → *Épingler en haut*. L'album passe
+  juste après les Favoris et y reste **quel que soit le tri**, les autres
+  suivent derrière. Clic droit → *Ne plus épingler* pour le relâcher.
+* **Trier** — le bouton de tri dans l'en-tête de l'écran Albums propose quatre
+  ordres : *modifiés récemment* (par défaut), *par nom*, *année la plus récente
+  d'abord* et *année la plus ancienne d'abord*.
+
+Les deux tris par année lisent **l'année écrite dans le nom** (« Vacances
+2026 » → 2026), parce que c'est ainsi qu'on nomme les albums en pratique — pas
+la date de création du dossier. Un album sans année lisible passe à la fin,
+rangé par nom. Le chiffre doit être une vraie année isolée : « Sortie 662068 »
+n'est pas lu comme 2068.
 
 **Créer un album à partir d'une sélection** : sélectionnez les photos, **Y** →
 *Ajouter à un album* → *Nouvel album*. Le formulaire annonce combien de photos
@@ -346,6 +365,23 @@ remplie — on voit d'un coup d'œil qu'il reste des photos à prendre. Ça marc
 dans les deux dispositions, par jour comme condensée.
 
 **B** ou Échap quitte le mode sélection.
+
+## Tourner une photo
+
+Une photo couchée se redresse d'un quart de tour à la fois :
+
+* **clic du stick droit (RS)** en plein écran ;
+* **R** au clavier ;
+* **clic droit → Tourner**, dans la grille comme en plein écran.
+
+Quatre appuis ramènent la photo à son point de départ, sans aucune perte : le
+**fichier d'origine n'est jamais réécrit**. Photon note l'angle de son côté et
+refait la vignette ; l'image sur le disque reste celle de l'appareil photo, à
+l'octet près.
+
+Les vidéos ne sont pas concernées : elles gardent leur orientation à la
+lecture, et les tourner ne ferait qu'une vignette de travers par rapport au
+film.
 
 ## Cacher plutôt que supprimer
 

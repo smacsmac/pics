@@ -128,6 +128,13 @@ addColumnIfMissing('media', 'acodec', 'TEXT');
 // l'apparence neutre, comme avant.
 addColumnIfMissing('tags', 'color', 'INTEGER');
 
+// Album épinglé : il passe devant tous les autres, quel que soit le tri.
+addColumnIfMissing('albums', 'pinned', 'INTEGER NOT NULL DEFAULT 0');
+
+// Rotation choisie à la main, en degrés (0, 90, 180, 270). Elle s'applique aux
+// vignettes et à l'affichage ; le fichier d'origine n'est jamais réécrit.
+addColumnIfMissing('media', 'rotation', 'INTEGER NOT NULL DEFAULT 0');
+
 /** L'album « favoris » est un album normal, simplement épinglé et non supprimable. */
 export function ensureFavoritesAlbum(): number {
   const existing = db.prepare(`SELECT id FROM albums WHERE kind = 'favorites'`).get() as

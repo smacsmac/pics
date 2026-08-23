@@ -253,8 +253,10 @@ async function indexFile(rootId: number, found: WalkResult): Promise<void> {
 async function buildPendingThumbs(): Promise<void> {
   status.phase = 'thumbnails';
   const pending = db
-    .prepare(`SELECT id, path, kind FROM media WHERE thumb_state = 'pending' AND missing = 0`)
-    .all() as Array<{ id: number; path: string; kind: 'photo' | 'video' }>;
+    .prepare(
+      `SELECT id, path, kind, rotation FROM media WHERE thumb_state = 'pending' AND missing = 0`,
+    )
+    .all() as Array<{ id: number; path: string; kind: 'photo' | 'video'; rotation: number }>;
 
   status.thumbsTotal = pending.length;
   status.thumbsDone = 0;
@@ -267,7 +269,7 @@ async function buildPendingThumbs(): Promise<void> {
   async function worker(): Promise<void> {
     while (cursor < pending.length) {
       const item = pending[cursor++];
-      const ok = await makeThumbs(item.id, item.path, item.kind);
+      const ok = await makeThumbs(item.id, item.path, item.kind, item.rotation);
       markReady.run(ok ? 'ready' : 'failed', item.id);
       status.thumbsDone++;
       if (status.thumbsDone % 10 === 0 || status.thumbsDone === pending.length) notify();

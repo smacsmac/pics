@@ -26,6 +26,8 @@ export interface MediaItem {
    * sur la photo — d'où la liste séparée.
    */
   albumTags: string[];
+  /** Rotation d'affichage en degrés (0, 90, 180, 270). Le fichier reste intact. */
+  rotation: number;
 }
 
 export interface Album {
@@ -40,6 +42,8 @@ export interface Album {
   /** Opacité de cet arrière-plan, en pourcentage (0-100). */
   backgroundOpacity: number;
   coverMediaId: number | null;
+  /** Épinglé : l'album passe en tête de la grille, avant le tri courant. */
+  pinned: boolean;
   kind: 'user' | 'favorites';
   count: number;
   tags: string[];
@@ -54,6 +58,13 @@ export interface Album {
 export type ZoomKey = 'timeline' | 'videos' | 'album' | 'albums';
 export type ZoomLevels = Record<ZoomKey, number>;
 
+/**
+ * Ordres possibles pour la grille d'albums. « yearDesc » et « yearAsc » lisent
+ * l'année écrite dans le nom (« Vacances 2026 »), ce qui correspond à la façon
+ * dont les albums sont nommés en pratique.
+ */
+export type AlbumSort = 'recent' | 'name' | 'yearDesc' | 'yearAsc';
+
 export interface Settings {
   fontScale: number; // 0..4
   hue: number; // 0..359, la couleur globale « arc-en-ciel néon »
@@ -63,6 +74,8 @@ export interface Settings {
   showHidden: boolean;
   /** « day » groupe par journée ; « compact » enchaîne les journées en largeur. */
   layout: 'day' | 'compact';
+  /** Ordre de la grille d'albums. « year » lit l'année écrite dans le nom. */
+  albumSort: AlbumSort;
   /** Si vrai, seul un admin déverrouillé peut envoyer des photos. */
   uploadRequiresAdmin: boolean;
 }

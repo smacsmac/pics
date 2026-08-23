@@ -58,6 +58,7 @@ export type Sheet =
   | { kind: 'monthPicker'; which: 'from' | 'to'; field: 'month' | 'year' }
   | { kind: 'placePicker' }
   | { kind: 'tagPicker' }
+  | { kind: 'albumSort' }
   | { kind: 'upload' };
 
 export interface OskRequest {
@@ -127,7 +128,7 @@ const StoreContext = createContext<Store | null>(null);
 const DEFAULT_SETTINGS: Settings = {
   fontScale: 2, hue: 285, volume: 3, lang: 'fr', showHidden: false,
   zoom: { timeline: 2, videos: 2, album: 2, albums: 2 },
-  layout: 'day', uploadRequiresAdmin: false,
+  layout: 'day', albumSort: 'recent', uploadRequiresAdmin: false,
 };
 
 const EMPTY_FILTERS: Filters = { from: null, to: null, place: null, tags: [], text: '' };
