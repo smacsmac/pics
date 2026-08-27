@@ -43,10 +43,22 @@ export function destroySession(token: string | undefined): void {
   if (token) sessions.delete(token);
 }
 
-export function isAdmin(req: FastifyRequest): boolean {
-  // Aucun mot de passe défini : l'app est en « portes ouvertes », premier
-  // démarrage. On reste admin jusqu'à ce qu'un mot de passe soit choisi.
-  if (!isPasswordSet()) return true;
+/**
+ * Le « mode enfant » est l'inverse d'un verrou permanent : l'application est
+ * grande ouverte, et on la bride volontairement avant de la confier aux
+ * enfants. Sans ce mode, tout le monde a les pleins droits ; avec, il faut le
+ * mot de passe pour ressortir.
+ */
+export function isChildMode(): boolean {
+  return getSetting<boolean>('childMode', false) === true;
+}
+
+export function setChildMode(on: boolean): void {
+  setSetting('childMode', on);
+}
+
+/** Vrai si cette session a déjà donné le mot de passe. */
+export function hasSession(req: FastifyRequest): boolean {
   const token = req.cookies?.[ADMIN_COOKIE];
   if (!token) return false;
   const expiry = sessions.get(token);
@@ -56,6 +68,14 @@ export function isAdmin(req: FastifyRequest): boolean {
     return false;
   }
   return true;
+}
+
+export function isAdmin(req: FastifyRequest): boolean {
+  // Hors mode enfant, l'application est ouverte : c'est le réglage par défaut.
+  if (!isChildMode()) return true;
+  // Sans mot de passe défini, le mode enfant ne peut rien protéger.
+  if (!isPasswordSet()) return true;
+  return hasSession(req);
 }
 
 /**

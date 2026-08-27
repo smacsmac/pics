@@ -38,6 +38,7 @@ function queryString(q: MediaQuery): string {
   if (q.place) params.set('place', q.place);
   if (q.album !== undefined) params.set('album', String(q.album));
   if (q.kind) params.set('kind', q.kind);
+  if (q.showHidden) params.set('showHidden', '1');
   if (q.cursor) params.set('cursor', q.cursor);
   if (q.limit) params.set('limit', String(q.limit));
   return params.toString();
@@ -152,6 +153,11 @@ export const api = {
   login: (password: string) =>
     request<{ ok: true }>('/api/admin/login', { method: 'POST', body: JSON.stringify({ password }) }),
   logout: () => request<{ ok: true }>('/api/admin/logout', { method: 'POST' }),
+  setChildMode: (on: boolean) =>
+    request<{ childMode: boolean }>('/api/admin/child-mode', {
+      method: 'POST',
+      body: JSON.stringify({ on }),
+    }),
   changePassword: (next: string) =>
     request<{ ok: true }>('/api/admin/password', { method: 'POST', body: JSON.stringify({ next }) }),
 

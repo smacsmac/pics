@@ -6,7 +6,10 @@ import type { Album, AlbumSort, AppState, Root, UploadResult } from '../../share
 import {
   drainInbox, ensureTempDir, fileIntoLibrary, importRoot, isKnownNameSize, safeName, TEMP_DIR,
 } from './import.js';
-import { ADMIN_COOKIE, createSession, destroySession, isAdmin, isPasswordSet, requireAdmin, setPassword, verifyPassword } from './auth.js';
+import {
+  ADMIN_COOKIE, createSession, destroySession, hasSession, isAdmin, isChildMode, isPasswordSet,
+  requireAdmin, setChildMode, setPassword, verifyPassword,
+} from './auth.js';
 import { db, FAVORITES_ID, pruneOrphanTags, tagId } from './db.js';
 import {
   dateBounds, distinctPlaces, getMedia, histogram, queryMedia, randomFavorite, type Filters,
@@ -46,7 +49,10 @@ function clampPercent(value: unknown, fallback: number): number {
 }
 
 function filtersFrom(query: Record<string, unknown>, admin: boolean): Filters {
-  const showHidden = getSettings().showHidden;
+  // La requête fait foi quand elle le précise : l'interface bascule le réglage
+  // et recharge dans la foulée, sans attendre que l'enregistrement soit fini.
+  const showHidden =
+    query.showHidden === undefined ? getSettings().showHidden : query.showHidden === '1';
   return {
     from: parseNum(query.from),
     to: parseNum(query.to),
@@ -267,6 +273,7 @@ export function registerRoutes(app: FastifyInstance, onRootsChanged: () => void 
       places: distinctPlaces(settings.lang).map((p) => p.city),
       roots: admin ? rootRows() : [],
       isAdmin: admin,
+      childMode: isChildMode(),
       adminPasswordSet: isPasswordSet(),
       scan: scanStatus,
       counts: { photos: counts.photos ?? 0, videos: counts.videos ?? 0, hidden: counts.hidden ?? 0 },
@@ -650,6 +657,24 @@ export function registerRoutes(app: FastifyInstance, onRootsChanged: () => void 
     destroySession(req.cookies?.[ADMIN_COOKIE]);
     void reply.clearCookie(ADMIN_COOKIE, { path: '/' });
     return { ok: true };
+  });
+
+  /**
+   * Mode enfant. L'entrée est libre — on veut pouvoir brider l'application en
+   * un geste avant de la tendre à un enfant. La sortie demande le mot de passe,
+   * sinon le mode ne protégerait rien.
+   */
+  app.post('/api/admin/child-mode', async (req, reply) => {
+    const { on } = req.body as { on?: boolean };
+    if (on) {
+      setChildMode(true);
+      return { childMode: true };
+    }
+    if (isPasswordSet() && !hasSession(req)) {
+      return reply.code(403).send({ error: 'admin_required' });
+    }
+    setChildMode(false);
+    return { childMode: false };
   });
 
   app.post('/api/admin/password', async (req, reply) => {

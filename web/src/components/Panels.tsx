@@ -2,7 +2,7 @@ import type { Lang } from '../../../shared/types';
 import { LANGS, monthNames } from '../lib/i18n';
 import { FONT_BOXES, FONT_MAX, HUES, VOLUME_BOXES, VOLUME_MAX, rightRows } from '../lib/panels';
 import { useStore, type MonthValue } from '../lib/store';
-import { IconEye, IconFolder, IconFont, IconGlobe, IconKey, IconPalette, IconVolume } from './Icons';
+import { IconChild, IconEye, IconFolder, IconFont, IconGlobe, IconPalette, IconVolume } from './Icons';
 
 /** Valeur affichée dans [mois] [année] : le filtre s'il existe, sinon la borne. */
 export function displayMonth(value: MonthValue | null, fallbackTs: number | null): MonthValue {
@@ -260,6 +260,9 @@ export function SettingsPanel({ onFocusRow }: PanelProps): React.JSX.Element {
         </div>
       </div>
 
+      {/* Mode enfant : l'application est ouverte par défaut, et on la bride
+          d'un geste avant de la confier aux enfants. En sortir demande le mot
+          de passe — sinon le mode ne protégerait rien. */}
       <button
         className={`panel-row${rowAt('admin') ? ' on' : ''}`}
         style={{ textAlign: 'left' }}
@@ -267,11 +270,16 @@ export function SettingsPanel({ onFocusRow }: PanelProps): React.JSX.Element {
         onClick={() => setSheet({ kind: 'admin' })}
       >
         <div className="row-line">
-          <IconKey />
-          <span className="lab">{t.admin}</span>
+          <IconChild />
+          <span className="lab">{t.childMode}</span>
+          <span className={`toggle${state?.childMode ? ' on' : ''}`}>
+            <span className="knob" />
+          </span>
         </div>
         <span className="mini">
-          {isAdmin ? t.adminUnlocked : state?.adminPasswordSet ? t.password : t.setPassword}
+          {state?.childMode
+            ? isAdmin ? t.childModeOnUnlocked : t.childModeOn
+            : t.childModeOff}
         </span>
       </button>
 
@@ -299,24 +307,24 @@ export function SettingsPanel({ onFocusRow }: PanelProps): React.JSX.Element {
           <IconGlobe />
           <span className="lab">{t.language}</span>
         </div>
-        <div className="flags">
+        {/* Un seul long bouton segmenté, séparé par des barres obliques : EN / FR / KR. */}
+        <div className="lang-pill">
           {LANGS.map((lang, i) => (
-            <button
-              key={lang.code}
-              className={`flag${settings.lang === lang.code ? ' on' : ''}`}
-              title={lang.label}
-              style={
-                rowAt('lang') && nav.subIndex === i
-                  ? { outline: '1px solid var(--accent)', outlineOffset: '1px' }
-                  : undefined
-              }
-              onClick={() => {
-                onFocusRow(indexOf('lang'), i);
-                patchSettings({ lang: lang.code as Lang });
-              }}
-            >
-              {lang.flag}
-            </button>
+            <span key={lang.code} className="seg">
+              {i > 0 && <span className="slash">/</span>}
+              <button
+                className={`code${settings.lang === lang.code ? ' on' : ''}${
+                  rowAt('lang') && nav.subIndex === i ? ' aim' : ''
+                }`}
+                title={lang.label}
+                onClick={() => {
+                  onFocusRow(indexOf('lang'), i);
+                  patchSettings({ lang: lang.code as Lang });
+                }}
+              >
+                {lang.short}
+              </button>
+            </span>
           ))}
         </div>
       </div>

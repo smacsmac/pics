@@ -8,6 +8,12 @@ import { formatDayHeading, formatMonthLabel, formatShortDay } from '../lib/i18n'
 import { useStore } from '../lib/store';
 import { IconCheck, IconExpand, IconHeart, IconHide, IconPlay, IconPlus, IconTag } from './Icons';
 
+/** Début du mois d'une journée, en epoch ms : la clé des repères de section. */
+function monthKey(day: number): number {
+  const d = new Date(day);
+  return new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+}
+
 export interface TileAction {
   (item: MediaItem, action: 'open' | 'add' | 'remove'): void;
 }
@@ -24,8 +30,11 @@ interface Props {
 }
 
 export function Timeline({ feed, inAlbum, zoom, onAction, onColumns, scrollRef }: Props): React.JSX.Element {
-  const { nav, settings, selectMode, selection, setNav, setSelection, toggleSelection, t } = useStore();
+  const { nav, settings, selectMode, selection, setNav, setSelection, toggleSelection, setAnchor, t } =
+    useStore();
   const gridRef = useRef<HTMLDivElement | null>(null);
+  // Dernier mois signalé : on ne remonte au store que les vrais changements.
+  const anchorRef = useRef<number | null>(null);
   const [cols, setCols] = useState(6);
 
   const base = TILE_WIDTHS[zoom] ?? TILE_WIDTHS[2];
@@ -52,26 +61,55 @@ export function Timeline({ feed, inAlbum, zoom, onAction, onColumns, scrollRef }
     return () => observer.disconnect();
   }, [base, onColumns]);
 
-  // Charge la suite quand le bas approche.
+  // Charge la suite quand le bas approche, et signale le mois affiché en haut.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
+    let queued = false;
     const onScroll = (): void => {
       if (el.scrollTop + el.clientHeight > el.scrollHeight - 900) feed.loadMore();
+      // Une seule mesure par image : le défilement en émet bien davantage.
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(() => {
+        queued = false;
+        const top = el.getBoundingClientRect().top;
+        const sections = el.querySelectorAll<HTMLElement>('[data-month]');
+        let seen: number | null = null;
+        for (const node of sections) {
+          // Première section dont le bas est encore sous le haut de la vue.
+          if (node.getBoundingClientRect().bottom > top + 4) {
+            seen = Number(node.dataset.month);
+            break;
+          }
+        }
+        if (seen !== null && seen !== anchorRef.current) {
+          anchorRef.current = seen;
+          setAnchor(seen);
+        }
+      });
     };
     el.addEventListener('scroll', onScroll, { passive: true });
     onScroll();
     return () => el.removeEventListener('scroll', onScroll);
-  }, [feed, scrollRef]);
+  }, [feed, scrollRef, setAnchor]);
 
-  // Garde la tuile sélectionnée dans le champ de vision quand on se déplace à
-  // la manette, et charge la suite si on atteint le bas de ce qui est chargé.
   const focusIndex = nav.zone === 'content' ? nav.contentIndex : -1;
+
+  // Garde la tuile surlignée dans le champ de vision, mais SEULEMENT quand elle
+  // change. Ce défilement dépendait aussi de `feed`, dont l'identité change à
+  // chaque rendu : la vue était sans cesse ramenée sur la tuile surlignée, et
+  // tout défilement ailleurs — un saut vers un mois, par exemple — était annulé
+  // dans la foulée.
   useEffect(() => {
     if (focusIndex < 0) return;
     const el = document.querySelector<HTMLElement>(`[data-flat="${focusIndex}"]`);
     el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-    if (focusIndex >= feed.items.length - cols * 3) feed.loadMore();
+  }, [focusIndex]);
+
+  // Charger la suite quand la navigation approche du bas de ce qui est chargé.
+  useEffect(() => {
+    if (focusIndex >= 0 && focusIndex >= feed.items.length - cols * 3) feed.loadMore();
   }, [focusIndex, feed, cols]);
 
   if (feed.items.length === 0 && !feed.loading) {
@@ -155,6 +193,7 @@ export function Timeline({ feed, inAlbum, zoom, onAction, onColumns, scrollRef }
               <section
                 key={section.day}
                 className={`compact-day${holdsFocus ? ' current' : ''}`}
+                data-month={monthKey(section.day)}
                 style={{ width }}
               >
                 <span className="lab">
@@ -187,6 +226,8 @@ export function Timeline({ feed, inAlbum, zoom, onAction, onColumns, scrollRef }
           <section
             key={section.day}
             className="day-block"
+            // Repère du mois : le curseur de dates s'en sert pour venir ici.
+            data-month={monthKey(section.day)}
             style={{ contentVisibility: 'auto', containIntrinsicSize: `auto ${rows * (tileWidth + 6) + 46}px` }}
           >
             <h2 className="day-head">
@@ -342,7 +383,9 @@ export function DateScrubber({
   const max = Math.max(...buckets.map((b) => b.count));
   // Au-delà d'une trentaine de repères on n'étiquette qu'un mois sur n.
   const stride = Math.max(1, Math.ceil(buckets.length / 26));
-  const current = buckets.findIndex((b) => anchor !== null && anchor >= b.month);
+  // « anchor » est le mois posé en haut de l'écran : le repère suit donc la
+  // position réelle, au lieu de marquer une borne de filtre.
+  const current = buckets.findIndex((b) => b.month === anchor);
 
   return (
     // Le curseur est estompé au repos ; viser à la manette doit le réveiller,
@@ -350,11 +393,11 @@ export function DateScrubber({
     <div className={`scrubber${aim !== null ? ' aiming' : ''}`}>
       {buckets.map((bucket, i) => {
         const aimed = i === aim;
-        const on = anchor !== null && anchor >= bucket.month;
+        const on = i === current;
         return (
           <button
             key={bucket.month}
-            className={`scrub-mark${on && i === current ? ' on' : ''}${aimed ? ' aim' : ''}`}
+            className={`scrub-mark${on ? ' on' : ''}${aimed ? ' aim' : ''}`}
             onClick={() => onPick(bucket.month)}
             title={`${formatMonthLabel(bucket.month, settings.lang)} · ${bucket.count}`}
           >

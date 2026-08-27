@@ -51,7 +51,7 @@ avec la même interface, tactile en prime.
 | Refermer une barre latérale | **B** | Échap | clic dans la vue principale |
 | Définir la photo affichée comme couverture | **LS** (clic du stick gauche) | — | Modifier l'album → couverture |
 | Viser un mois dans le curseur de dates | **stick droit ↑ ↓** | Page préc. / Page suiv. | survol |
-| Aller au mois visé | **A** | Entrée | clic |
+| Se rendre au mois visé | **A** | Entrée | clic sur le mois, à droite |
 | Tags d'un album (sur sa carte) | **X** | — | clic droit → Modifier les tags |
 | Épingler un album en haut | — | — | clic droit → Épingler en haut |
 | Tourner une photo d'un quart de tour | **RS** (clic du stick droit) | **R** | clic droit → Tourner |
@@ -73,21 +73,28 @@ croix directionnelle et le stick, eux, restent locaux : à l'intérieur d'une
 barre, ← et → passent d'un champ à l'autre, par exemple de `[avr.]` à `[2018]`.
 
 Tout est aussi cliquable à la souris, y compris à l'intérieur des barres :
-les pastilles de date, les cases de volume, les teintes, les drapeaux.
+les pastilles de date, les cases de volume, les teintes, les langues.
 
 Sur une photo surlignée, les trois actions forment un cercle qui reprend la
 disposition de la manette : **Y** en haut, **X** à gauche, **A** en bas.
 
 ### Le curseur de dates au stick droit
 
-Le curseur des mois, à droite de l'écran, se pilote au **stick droit**. Il
-*vise* seulement : le mois pointé grossit, se souligne et s'accompagne d'une
-pastille **A** — mais la chronologie ne bouge pas d'un pixel tant que vous
-n'avez pas confirmé.
+Le curseur des mois, à droite de l'écran, **fait défiler la chronologie
+jusqu'au mois choisi**. Il ne filtre rien : tout ce qui est plus récent reste
+au-dessus, il suffit de remonter. Le mois demandé se pose en première ligne, pas
+« quelque part dans les parages ».
+
+Le repère allumé suit la position réelle : c'est un « vous êtes ici », qui se
+déplace tout seul quand vous faites défiler à la main.
+
+À la manette, le **stick droit** *vise* d'abord : le mois pointé grossit, se
+souligne et s'accompagne d'une pastille **A** — la vue ne bouge pas tant que
+vous n'avez pas confirmé.
 
 * **stick droit ↑ / ↓** — viser le mois précédent ou suivant ; maintenez pour
   faire défiler.
-* **A** — y aller pour de bon.
+* **A** — s'y rendre pour de bon.
 * **B** — abandonner ; la vue reste exactement où elle était.
 
 Viser réveille le curseur, normalement estompé : sans souris à l'écran, rien
@@ -118,7 +125,7 @@ navigateur la voit via XInput. Deux détails à connaître —
 * **Nouvel album** — nom, couleur, musique, tags.
 * **Les deux tuiles suivantes** — les albums les plus récents. LB/RB pour
   faire défiler les suivants.
-* **Paramètres** — taille du texte, volume, thème, admin, dossiers, langue.
+* **Paramètres** — taille du texte, volume, thème, mode enfant, dossiers, langue.
 
 ## Envoyer des photos depuis un téléphone
 
@@ -387,26 +394,32 @@ film.
 
 Photon ne supprime jamais un fichier. **X** (ou le menu contextuel) *cache* une
 photo : elle disparaît des vues, le fichier reste intact sur le disque. Pour les
-revoir : **Paramètres → Voir les photos cachées** (admin).
+revoir : **Paramètres → Voir les photos cachées**. La bascule agit tout de
+suite, dans les deux sens — inutile de recharger la page.
 
-## Admin
+## Mode enfant
+
+Photon est **ouvert par défaut** : tout est permis, sans mot de passe à saisir.
+Le verrou fonctionne dans l'autre sens — on le pose quand on en a besoin.
+
+Avant de tendre l'application à un enfant, **Paramètres → Mode enfant →
+*Activer le mode enfant***. Une pastille apparaît en bas de l'écran, et ces
+gestes sont alors bloqués : cacher une photo, la tourner, gérer les albums et
+leurs tags, toucher aux dossiers et aux réglages sensibles. Regarder les photos,
+lui, reste libre.
+
+**Pour en sortir, il faut le mot de passe** (Paramètres → Mode enfant, ou la
+pastille en bas de l'écran). C'est le seul moment où on le demande. Un mauvais
+mot de passe ne fait pas sortir du mode.
+
+Entrer dans le mode enfant, en revanche, ne demande rien : il doit rester
+possible de brider l'application en un geste, même si quelqu'un d'autre a le
+mot de passe en tête. Choisissez-en un dans la même fenêtre si ce n'est pas déjà
+fait — sans mot de passe, n'importe qui peut ressortir du mode.
 
 L'application écoute sur le réseau local, donc masquer un bouton ne protège
-rien : toutes les opérations sensibles sont vérifiées **côté serveur**.
-
-Au premier démarrage il n'y a pas de mot de passe et tout est ouvert. Dès que
-vous en choisissez un (Paramètres → Admin), les actions suivantes exigent d'être
-déverrouillé : cacher une photo, gérer les albums, modifier les tags, configurer
-les dossiers. Les autres appareils du Wi-Fi peuvent alors regarder, sans rien
-modifier.
-
-**Quand c'est verrouillé, les boutons ne disparaissent pas** : une pastille
-*Verrouillé* apparaît en bas de l'écran, et cliquer sur une action réservée
-propose la saisie du mot de passe. La session reste déverrouillée 30 jours, par
-navigateur — un autre appareil, ou un navigateur vidé de ses données, redemande
-le mot de passe.
-
----
+rien : **toutes ces vérifications sont faites côté serveur**, pas seulement dans
+l'interface. La session reste déverrouillée 30 jours par navigateur.
 
 ## Essayer sans ses vraies photos
 

@@ -4,8 +4,8 @@ import {
   AlbumForm, AlbumMusic, AlbumsGrid, albumFields, clampPercent, type AlbumDraft,
 } from './components/Albums';
 import {
-  IconCompact, IconGamepad, IconKey, IconPencil, IconRows, IconSelect, IconSort, IconX, IconZoomIn,
-  IconZoomOut,
+  IconChild, IconCompact, IconGamepad, IconPencil, IconRows, IconSelect, IconSort, IconX,
+  IconZoomIn, IconZoomOut,
 } from './components/Icons';
 import {
   AddToAlbumSheet, AdminSheet, AlbumContextMenu, AlbumTagsSheet, ContextMenu, FoldersSheet,
@@ -32,15 +32,16 @@ export function App(): React.JSX.Element {
   const store = useStore();
   const {
     state, refresh, settings, patchSettings, t, view, openView, back, filters, setFilters,
-    clearFilters, filtersActive, query, anchor, setAnchor, nav, setNav, selectMode, setSelectMode,
+    clearFilters, filtersActive, query, anchor, setAnchor, seekMonth, setSeekMonth,
+    nav, setNav, selectMode, setSelectMode,
     selection, setSelection, toggleSelection, setAddToAlbumFor, setTagEditorFor, setOsk,
     sheet, setSheet, toast, tagCursor, setTagCursor,
     pendingAlbumMedia, setPendingAlbumMedia, setAlbumTagsFor,
   } = store;
 
   const isAdmin = state?.isAdmin ?? false;
-  /** Un mot de passe existe, mais cette session ne l'a pas encore saisi. */
-  const isLocked = (state?.adminPasswordSet ?? false) && !isAdmin;
+  /** Mode enfant actif, et cette session ne l'a pas quitté. */
+  const isLocked = (state?.childMode ?? false) && !isAdmin;
   const albums = state?.albums ?? [];
   const favoritesAlbum = albums.find((a) => a.kind === 'favorites');
   const recentAlbums = useMemo(
@@ -204,6 +205,42 @@ export function App(): React.JSX.Element {
     if (view.kind !== 'newAlbum') setPendingAlbumMedia(null);
   }, [view.kind, setPendingAlbumMedia]);
 
+  /**
+   * Voyage vers le mois demandé. La chronologie se charge page par page en
+   * partant du plus récent : on continue tant que ce mois n'est pas arrivé,
+   * puis on le pose en haut de l'écran. Sans ça il fallait défiler à la main.
+   */
+  useEffect(() => {
+    if (seekMonth === null) return;
+    const container = scrollRef.current;
+    if (!container) return;
+
+    const d = new Date(seekMonth);
+    const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+    const reached = feed.items.some((item) => item.takenAt <= monthEnd);
+
+    if (!reached && feed.hasMore) {
+      if (!feed.loading) feed.loadMore();
+      return;
+    }
+
+    // Le mois est chargé : on attend le rendu, puis on aligne sa section.
+    const timer = window.setTimeout(() => {
+      const target =
+        container.querySelector<HTMLElement>(`[data-month="${seekMonth}"]`) ??
+        // Mois vide : on se pose sur le premier plus ancien qui existe.
+        [...container.querySelectorAll<HTMLElement>('[data-month]')].find(
+          (node) => Number(node.dataset.month) <= seekMonth,
+        );
+      if (target) {
+        const delta = target.getBoundingClientRect().top - container.getBoundingClientRect().top;
+        container.scrollTo({ top: container.scrollTop + delta, behavior: 'smooth' });
+      }
+      setSeekMonth(null);
+    }, 60);
+    return () => window.clearTimeout(timer);
+  }, [seekMonth, feed, setSeekMonth]);
+
   // ------------------------------------------------------------ actions
 
   /**
@@ -328,16 +365,12 @@ export function App(): React.JSX.Element {
     [targetIds, requireAdmin, feed, toast, t.rotated],
   );
 
-  /** Ancre la chronologie sur un mois : à la souris comme à la manette. */
-  const pickMonth = useCallback(
-    (month: number) => {
-      const d = new Date(month);
-      const end = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
-      setAnchor(end.getTime());
-      scrollRef.current?.scrollTo({ top: 0 });
-    },
-    [setAnchor],
-  );
+  /**
+   * Se rendre à un mois : on y *défile*, on ne filtre pas. Tout ce qui est plus
+   * récent reste au-dessus, il suffit de remonter — avant, choisir « mai 2020 »
+   * masquait tout le reste.
+   */
+  const pickMonth = useCallback((month: number) => setSeekMonth(month), [setSeekMonth]);
 
   /** Fermeture du plein écran : c'est là qu'on rattrape un scan mis en attente. */
   const closeViewer = useCallback(() => {
@@ -1176,8 +1209,13 @@ export function App(): React.JSX.Element {
                 </div>
               )}
 
-              {anchor !== null && (
-                <button className="tiny-btn" onClick={() => setAnchor(null)}>
+              {/* Remonter d'un geste : le curseur de dates ne filtre plus, donc
+                  ce bouton ramène en haut au lieu d'effacer une borne. */}
+              {isMediaView && anchor !== null && buckets.length > 1 && anchor !== buckets[0]?.month && (
+                <button
+                  className="tiny-btn"
+                  onClick={() => scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })}
+                >
                   <IconX /> {t.today}
                 </button>
               )}
@@ -1319,9 +1357,15 @@ export function App(): React.JSX.Element {
             {isAdmin && (state?.counts.hidden ?? 0) > 0 && ` · ${state?.counts.hidden} ${t.hidden}`}
           </span>
         )}
-        {isLocked && (
-          <button className="lock-chip" onClick={() => setSheet({ kind: 'admin' })} title={t.adminUnlockPrompt}>
-            <IconKey /> {t.adminLocked}
+        {/* Le mode enfant se voit en permanence : on doit savoir d'un coup
+            d'oeil si l'application est bridée, et pouvoir en sortir d'ici. */}
+        {(state?.childMode ?? false) && (
+          <button
+            className={`lock-chip${isAdmin ? ' unlocked' : ''}`}
+            onClick={() => setSheet({ kind: 'admin' })}
+            title={isAdmin ? t.childModeOnUnlocked : t.endChildModeHint}
+          >
+            <IconChild /> {t.childMode}
           </button>
         )}
         <span className="pad-hint">

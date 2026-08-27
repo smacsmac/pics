@@ -199,3 +199,12 @@ export const IconSort = (p: P) => (
     <path d="M17.5 7v10M17.5 17l2.5-2.6M17.5 17L15 14.4" {...S} />
   </Svg>
 );
+
+/** Mode enfant : une frimousse, plus parlante qu'un cadenas pour ce réglage. */
+export const IconChild = (p: P) => (
+  <Svg {...p}>
+    <circle cx="12" cy="12" r="8.4" {...S} />
+    <path d="M9 10.4h.01M15 10.4h.01" {...S} strokeWidth={2.6} />
+    <path d="M8.8 14.6a4.2 4.2 0 0 0 6.4 0" {...S} />
+  </Svg>
+);

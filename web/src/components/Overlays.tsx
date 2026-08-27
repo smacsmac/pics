@@ -262,8 +262,11 @@ export function AdminSheet(): React.JSX.Element | null {
     async (value: string) => {
       try {
         await api.login(value);
+        // Le mot de passe accepté, on ressort du mode enfant : c'est la seule
+        // raison de le demander.
+        await api.setChildMode(false).catch(() => {});
         await refresh();
-        toast(t.adminUnlocked);
+        toast(t.childModeOff);
         setSheet(null);
       } catch (err) {
         setError(
@@ -297,47 +300,76 @@ export function AdminSheet(): React.JSX.Element | null {
 
   if (!open) return null;
   const isAdmin = state?.isAdmin ?? false;
+  const childMode = state?.childMode ?? false;
+
+  // Hors mode enfant, tout est ouvert : la fenêtre sert à entrer dans le mode,
+  // pas à déverrouiller. On n'y demande donc jamais le mot de passe.
+  if (!childMode) {
+    return (
+      <div className="overlay" onClick={() => setSheet(null)}>
+        <div className="sheet" onClick={(e) => e.stopPropagation()}>
+          <div className="sheet-title">{t.childMode}</div>
+          <div className="mini">{t.childModeHint}</div>
+          <div className="form-actions">
+            <button
+              className="btn"
+              onClick={() =>
+                setOsk({
+                  label: state?.adminPasswordSet ? t.changePassword : t.setPassword,
+                  value: '',
+                  onCommit: (value) => {
+                    void api
+                      .changePassword(value)
+                      .then(() => toast(t.changePassword))
+                      .catch(() => setError(t.passwordTooShort));
+                  },
+                })
+              }
+            >
+              {state?.adminPasswordSet ? t.changePassword : t.setPassword}
+            </button>
+            <button
+              className="btn primary"
+              onClick={() => {
+                void api.setChildMode(true).then(refresh).then(() => toast(t.childModeOn));
+                setSheet(null);
+              }}
+            >
+              {t.startChildMode}
+            </button>
+          </div>
+          {error && <div className="mini" style={{ color: '#ff9aad' }}>{error}</div>}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="overlay" onClick={() => setSheet(null)}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="sheet-title">{t.admin}</div>
+        <div className="sheet-title">{t.childMode}</div>
 
-        {isAdmin && state?.adminPasswordSet ? (
+        {isAdmin ? (
           <>
-            <div className="mini">{t.adminUnlocked}</div>
+            <div className="mini">{t.childModeOnUnlocked}</div>
             <div className="form-actions">
-              <button
-                className="btn"
-                onClick={() =>
-                  setOsk({
-                    label: t.changePassword,
-                    value: '',
-                    onCommit: (value) => {
-                      void api
-                        .changePassword(value)
-                        .then(() => toast(t.changePassword))
-                        .catch(() => setError(t.passwordTooShort));
-                    },
-                  })
-                }
-              >
-                {t.changePassword}
+              <button className="btn" onClick={() => setSheet(null)}>
+                {t.cancel}
               </button>
               <button
-                className="btn danger"
+                className="btn primary"
                 onClick={() => {
-                  void api.logout().then(refresh);
+                  void api.setChildMode(false).then(refresh).then(() => toast(t.childModeOff));
                   setSheet(null);
                 }}
               >
-                {t.lock}
+                {t.endChildMode}
               </button>
             </div>
           </>
         ) : (
           <>
-            <div className="mini">{state?.adminPasswordSet ? t.password : t.setPassword}</div>
+            <div className="mini">{t.endChildModeHint}</div>
             <input
               className="text-input"
               type="password"
@@ -354,7 +386,7 @@ export function AdminSheet(): React.JSX.Element | null {
                 {t.cancel}
               </button>
               <button className="btn primary" onClick={() => void submit(password)}>
-                {t.unlock}
+                {t.endChildMode}
               </button>
             </div>
           </>

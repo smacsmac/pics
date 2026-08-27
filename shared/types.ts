@@ -117,6 +117,11 @@ export interface AppState {
   places: string[];
   roots: Root[];
   isAdmin: boolean;
+  /**
+   * Mode enfant : l'application est bridée. Hors de ce mode elle est ouverte,
+   * ce qui est le réglage par défaut.
+   */
+  childMode: boolean;
   adminPasswordSet: boolean;
   scan: ScanStatus;
   counts: { photos: number; videos: number; hidden: number };
@@ -133,6 +138,12 @@ export interface MediaQuery {
   place?: string;
   album?: number;
   kind?: MediaKind;
+  /**
+   * Inclure les photos cachées. Passé explicitement plutôt que lu du réglage
+   * côté serveur : c'est ce qui fait que basculer « voir les photos cachées »
+   * change la requête, donc recharge la liste tout de suite.
+   */
+  showHidden?: boolean;
   cursor?: string;
   limit?: number;
 }

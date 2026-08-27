@@ -1,9 +1,9 @@
 import type { Lang } from '../../../shared/types';
 
-export const LANGS: Array<{ code: Lang; flag: string; label: string }> = [
-  { code: 'en', flag: '🇬🇧', label: 'English' },
-  { code: 'fr', flag: '⚜️', label: 'Français' },
-  { code: 'ko', flag: '🇰🇷', label: '한국어' },
+export const LANGS: Array<{ code: Lang; flag: string; short: string; label: string }> = [
+  { code: 'en', flag: '🇬🇧', short: 'EN', label: 'English' },
+  { code: 'fr', flag: '⚜️', short: 'FR', label: 'Français' },
+  { code: 'ko', flag: '🇰🇷', short: 'KR', label: '한국어' },
 ];
 
 /** Locales complètes pour Intl : dates et nombres suivent la langue choisie. */
@@ -126,7 +126,15 @@ const en = {
   adminOnly: 'Admin only',
   adminUnlocked: 'Admin unlocked',
   adminLocked: 'Locked',
-  adminUnlockPrompt: 'Unlock admin to change this',
+  adminUnlockPrompt: 'Leave child mode to change this',
+  childMode: 'Child mode',
+  childModeHint: 'Photon is wide open. Turn on child mode before handing it to a child: hiding, deleting, albums and settings are locked, and the password is needed to come back.',
+  childModeOn: 'Child mode on',
+  childModeOnUnlocked: 'Child mode on — unlocked on this device',
+  childModeOff: 'Child mode off — everything is open',
+  startChildMode: 'Start child mode',
+  endChildMode: 'End child mode',
+  endChildModeHint: 'Enter the password to end child mode',
 
   photoFolders: 'Photo folders',
   musicFolder: 'Music folder',
@@ -283,7 +291,15 @@ const fr: Dict = {
   adminOnly: 'Réservé à l’admin',
   adminUnlocked: 'Mode admin activé',
   adminLocked: 'Verrouillé',
-  adminUnlockPrompt: 'Déverrouillez l’admin pour modifier ceci',
+  adminUnlockPrompt: 'Quittez le mode enfant pour modifier ceci',
+  childMode: 'Mode enfant',
+  childModeHint: 'Photon est grand ouvert. Activez le mode enfant avant de le confier à un enfant : cacher, supprimer, les albums et les réglages sont bloqués, et le mot de passe est demandé pour en ressortir.',
+  childModeOn: 'Mode enfant activé',
+  childModeOnUnlocked: 'Mode enfant activé — déverrouillé sur cet appareil',
+  childModeOff: 'Mode enfant désactivé — tout est ouvert',
+  startChildMode: 'Activer le mode enfant',
+  endChildMode: 'Quitter le mode enfant',
+  endChildModeHint: 'Entrez le mot de passe pour quitter le mode enfant',
 
   photoFolders: 'Dossiers de photos',
   musicFolder: 'Dossier de musique',
@@ -435,7 +451,15 @@ const ko: Dict = {
   adminOnly: '관리자 전용',
   adminUnlocked: '관리자 모드',
   adminLocked: '잠김',
-  adminUnlockPrompt: '변경하려면 관리자 잠금을 해제하세요',
+  adminUnlockPrompt: '변경하려면 어린이 모드를 종료하세요',
+  childMode: '어린이 모드',
+  childModeHint: 'Photon은 모두 열려 있습니다. 아이에게 건네기 전에 어린이 모드를 켜세요. 숨기기, 삭제, 앨범, 설정이 잠기고 해제하려면 비밀번호가 필요합니다.',
+  childModeOn: '어린이 모드 켜짐',
+  childModeOnUnlocked: '어린이 모드 켜짐 — 이 기기는 해제됨',
+  childModeOff: '어린이 모드 꺼짐 — 모두 열려 있습니다',
+  startChildMode: '어린이 모드 시작',
+  endChildMode: '어린이 모드 종료',
+  endChildModeHint: '어린이 모드를 종료하려면 비밀번호를 입력하세요',
 
   photoFolders: '사진 폴더',
   musicFolder: '음악 폴더',

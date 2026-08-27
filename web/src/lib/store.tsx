@@ -84,9 +84,16 @@ interface Store {
   filtersActive: boolean;
   query: MediaQuery;
 
-  /** Ancre du curseur de dates : la chronologie démarre à ce mois-là. */
+  /**
+   * Mois actuellement en haut de la vue, pour le repère du curseur de dates.
+   * C'est une position, pas un filtre : les photos plus récentes restent au-
+   * dessus, il suffit de remonter.
+   */
   anchor: number | null;
   setAnchor: (ts: number | null) => void;
+  /** Mois vers lequel on veut se rendre. La chronologie y défile, sans filtrer. */
+  seekMonth: number | null;
+  setSeekMonth: (ts: number | null) => void;
 
   nav: Nav;
   setNav: (update: (n: Nav) => Nav) => void;
@@ -148,6 +155,7 @@ export function StoreProvider({ children }: { children: ReactNode }): React.JSX.
   const [history, setHistory] = useState<View[]>([]);
   const [filters, setFiltersState] = useState<Filters>(EMPTY_FILTERS);
   const [anchor, setAnchor] = useState<number | null>(null);
+  const [seekMonth, setSeekMonth] = useState<number | null>(null);
   const [nav, setNavState] = useState<Nav>({
     zone: 'content', topIndex: 1, panelIndex: 0, headIndex: 0, subIndex: 0, contentIndex: 0,
   });
@@ -247,12 +255,14 @@ export function StoreProvider({ children }: { children: ReactNode }): React.JSX.
     if (filters.to) q.to = monthEnd(filters.to);
     if (filters.place) q.place = filters.place;
     if (filters.tags.length) q.tags = filters.tags;
+    if (settings.showHidden) q.showHidden = true;
     if (view.kind === 'videos') q.kind = 'video';
     if (view.kind === 'album') q.album = view.id;
-    // L'ancre du curseur ne peut que resserrer la borne haute, jamais l'élargir.
-    if (anchor !== null) q.to = q.to === undefined ? anchor : Math.min(q.to, anchor);
+    // Le curseur de dates ne filtre plus : il fait défiler. Sans quoi choisir
+    // « mai 2020 » cachait tout ce qui était plus récent, alors qu'on voulait
+    // seulement s'y rendre.
     return q;
-  }, [filters, view, anchor]);
+  }, [filters, view, settings.showHidden]);
 
   const albumHue =
     view.kind === 'album'
@@ -274,7 +284,7 @@ export function StoreProvider({ children }: { children: ReactNode }): React.JSX.
     state, refresh, patchSettings, settings, t: dict(settings.lang),
     view, openView, back,
     filters, setFilters, clearFilters, filtersActive, query,
-    anchor, setAnchor,
+    anchor, setAnchor, seekMonth, setSeekMonth,
     nav, setNav, tagCursor, setTagCursor,
     selectMode, setSelectMode, selection, toggleSelection, setSelection,
     addToAlbumFor, setAddToAlbumFor, pendingAlbumMedia, setPendingAlbumMedia,
