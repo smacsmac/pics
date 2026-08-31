@@ -208,3 +208,34 @@ export const IconChild = (p: P) => (
     <path d="M8.8 14.6a4.2 4.2 0 0 0 6.4 0" {...S} />
   </Svg>
 );
+
+/** Souvenirs : une étincelle, pour ce que l'application retrouve toute seule. */
+export const IconSparkle = (p: P) => (
+  <Svg {...p}>
+    <path d="M12 3.4l1.9 4.7 4.7 1.9-4.7 1.9L12 16.6l-1.9-4.7L5.4 10l4.7-1.9z" {...S} />
+    <path d="M18.4 15.6l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8z" {...S} />
+  </Svg>
+);
+
+/** Diaporama : une image qui défile. */
+export const IconSlideshow = (p: P) => (
+  <Svg {...p}>
+    <rect x="3.2" y="5" width="13.6" height="11" rx="2" {...S} />
+    <path d="M19.4 7.6v9.6a2 2 0 0 1-2 2H7.6" {...S} />
+    <path d="M8.6 8.6l3.6 2.2-3.6 2.2z" {...S} />
+  </Svg>
+);
+
+/** Pause : deux barres, pour le diaporama arrêté. */
+export const IconPause = (p: P) => (
+  <Svg {...p}><path d="M9.4 5.5v13M14.6 5.5v13" {...S} strokeWidth={2.2} /></Svg>
+);
+
+/** Enregistrer une copie : une flèche qui descend vers un plateau. */
+export const IconDownload = (p: P) => (
+  <Svg {...p}>
+    <path d="M12 4v10" {...S} />
+    <path d="M8 10.4l4 4 4-4" {...S} />
+    <path d="M4.6 17.4v1.2a1.4 1.4 0 0 0 1.4 1.4h12a1.4 1.4 0 0 0 1.4-1.4v-1.2" {...S} />
+  </Svg>
+);

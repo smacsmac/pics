@@ -1,6 +1,6 @@
 import type {
-  Album, AppState, HistogramBucket, MediaItem, MediaPage, MediaQuery, PlaybackInfo, Root, Settings,
-  UploadResult,
+  Album, AppState, Chapter, HistogramBucket, MediaItem, MediaPage, MediaQuery, OnThisDay,
+  PlaybackInfo, Root, Settings, UploadResult,
 } from '../../../shared/types';
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -197,4 +197,24 @@ export const api = {
     `/api/thumb/${id}?s=${size}${rotation ? `&r=${rotation}` : ''}`,
   fileUrl: (id: number) => `/api/file/${id}`,
   musicUrl: (slot: number) => `/api/music/${slot}`,
+
+  // ------------------------------------------------------------- souvenirs
+
+  chapters: (limit = 120) => request<Chapter[]>(`/api/chapters?limit=${limit}`),
+  onThisDay: () => request<OnThisDay[]>('/api/media/on-this-day'),
+  mediaByIds: (ids: number[]) =>
+    request<MediaItem[]>(`/api/media/by-ids?ids=${ids.join(',')}`),
+
+  albumFromChapter: (name: string, ids: number[], color: number) =>
+    request<{ album: Album; albums: Album[] }>('/api/albums/from-chapter', {
+      method: 'POST',
+      body: JSON.stringify({ name, ids, color }),
+    }),
+
+  /**
+   * Enregistrer une sélection. On laisse le navigateur suivre le lien : c'est
+   * lui qui affiche l'avancement et propose où ranger le fichier, ce qu'aucun
+   * appel `fetch` ne saurait faire aussi bien.
+   */
+  downloadUrl: (ids: number[]) => `/api/media/download?ids=${ids.join(',')}`,
 };

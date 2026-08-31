@@ -16,6 +16,10 @@ export const DEFAULT_SETTINGS: Settings = {
   // Ouvert par défaut : l'intérêt est justement que n'importe quel appareil du
   // Wi-Fi puisse envoyer ses photos sans connaître le mot de passe.
   uploadRequiresAdmin: false,
+  slideshowSeconds: 5,
+  slideshowShuffle: false,
+  slideshowPan: true,
+  screensaverMinutes: 0,
 };
 
 function clamp(value: unknown, min: number, max: number, fallback: number): number {
@@ -50,6 +54,11 @@ export function getSettings(): Settings {
       ? (stored.albumSort as AlbumSort)
       : DEFAULT_SETTINGS.albumSort,
     uploadRequiresAdmin: stored.uploadRequiresAdmin === true,
+    slideshowSeconds: clamp(stored.slideshowSeconds, 2, 30, DEFAULT_SETTINGS.slideshowSeconds),
+    slideshowShuffle: stored.slideshowShuffle === true,
+    // Le mouvement est agréable par défaut ; il faut le refuser explicitement.
+    slideshowPan: stored.slideshowPan !== false,
+    screensaverMinutes: clamp(stored.screensaverMinutes, 0, 60, DEFAULT_SETTINGS.screensaverMinutes),
   };
 }
 

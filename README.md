@@ -55,6 +55,12 @@ avec la même interface, tactile en prime.
 | Tags d'un album (sur sa carte) | **X** | — | clic droit → Modifier les tags |
 | Épingler un album en haut | — | — | clic droit → Épingler en haut |
 | Tourner une photo d'un quart de tour | **RS** (clic du stick droit) | **R** | clic droit → Tourner |
+| Lancer le diaporama | **Start** | — | bouton *Diaporama* de l'en-tête |
+| Mettre le diaporama en pause | **A** | Entrée | clic sur la photo |
+| Régler la vitesse du diaporama | **LB** / **RB** | `[` `]` | boutons − / + |
+| Quitter le diaporama | **B** ou **Start** | Échap | bouton ✕ |
+| Faire un album d'un moment (écran Souvenirs) | **Y** | — | bouton *En faire un album* |
+| Enregistrer une copie | — | — | clic droit → Enregistrer |
 | Menu contextuel | — | — | clic droit |
 
 Les deux barres verticales n'apparaissent que lorsque leur bouton est
@@ -122,6 +128,8 @@ navigateur la voit via XInput. Deux détails à connaître —
 * **Favoris** — un album comme les autres, simplement épinglé. On y ajoute une
   photo par **Y** → *Favoris*.
 * **Vidéos** — la même chronologie, vidéos seulement.
+* **Souvenirs** — ce que Photon retrouve tout seul : les photos prises un même
+  jour les années passées, et les « moments ».
 * **Nouvel album** — nom, couleur, musique, tags.
 * **Les deux tuiles suivantes** — les albums les plus récents. LB/RB pour
   faire défiler les suivants.
@@ -326,6 +334,95 @@ Les deux sortes de tags restent distinctes là où ça compte :
 > d'un `+` tant qu'on n'a pas confirmé ; les filtres réellement appliqués sont
 > les pastilles pleines juste en dessous, qu'un clic retire.
 
+## Souvenirs
+
+Le bouton **Souvenirs** de la barre du haut ouvre un écran que Photon remplit
+sans qu'on lui demande rien.
+
+### Ce jour-là
+
+Une bande par année : les photos prises le même jour du même mois, les années
+précédentes. Le 31 août, vous retrouvez les 31 août de 2024, 2022, 2019…
+L'année en cours est écartée — ce ne serait pas un souvenir.
+
+Cliquez une vignette pour lancer le diaporama de cette année-là à partir d'elle,
+ou *Lancer* pour la reprendre depuis le début.
+
+Certains jours la bande est vide : rien n'a été pris à cette date les années
+passées. C'est écrit, plutôt que de laisser un blanc.
+
+### Moments
+
+Photon regroupe les photos prises coup sur coup au même endroit. Vingt photos
+en un après-midi à Hamilton forment un moment ; deux photos isolées, non. Un
+moment se termine après **huit heures** sans photo, ou en changeant de ville —
+un lieu inconnu ne coupe pas, faute de GPS c'est le temps qui décide. Il faut au
+moins **quatre photos** pour qu'un moment existe.
+
+**Rien n'est enregistré.** Les moments se recalculent à chaque ouverture de
+l'écran : ils suivent votre bibliothèque toute seule, sans jamais se périmer.
+Ajoutez des photos, ils se redécoupent.
+
+Chaque carte propose deux choses :
+
+* **Lancer** (ou **A**, ou un clic sur la couverture) — le diaporama du moment.
+* **En faire un album** (ou **Y**) — le moment devient un vrai album, avec ses
+  photos dedans, nommé d'après le lieu et la date : « Montréal — 12 juillet
+  2026 ». C'est la façon de garder un moment pour de bon, puisqu'il se
+  redécoupera sinon. Le nom se change ensuite comme celui de n'importe quel
+  album.
+
+## Diaporama
+
+Le **bouton Start** de la manette lance le diaporama de ce que vous regardez —
+la chronologie, un album, les vidéos, filtres compris — à partir de la photo
+surlignée. Le bouton *Diaporama* de l'en-tête fait la même chose à la souris.
+
+* **A** ou un clic — pause, puis reprise.
+* **← →** — photo précédente ou suivante, même en pause.
+* **LB / RB** ou les boutons − / + — la durée d'affichage, de 2 à 30 secondes.
+* **B**, **Start** ou Échap — quitter.
+
+Les photos s'enchaînent en fondu, avec un léger mouvement de caméra ; un trait
+d'avancement en bas de l'écran annonce le changement. Les vidéos se lancent
+toutes seules, avec leur son, et le diaporama repart à la fin — la musique
+d'album s'atténue pendant ce temps, comme en plein écran. Une vidéo illisible ne
+bloque rien : au bout de vingt secondes, on passe à la suivante.
+
+Le diaporama boucle, et sur la chronologie il continue de charger les photos
+plus anciennes au fur et à mesure : il ne s'arrête pas au bout des deux cents
+premières.
+
+### Quatre réglages, dans *Paramètres → Diaporama*
+
+* **durée d'une photo** — de 2 à 30 secondes.
+* **aléatoire** — l'ordre est tiré une fois au démarrage, et la photo d'où vous
+  partez passe en tête. Chaque photo passe une fois avant que ça reboucle.
+* **mouvement** — le léger zoom lent. Il se coupe tout seul si votre système
+  demande de réduire les animations.
+* **démarrage auto** — au bout de tant de minutes sans rien toucher, l'écran
+  devient un cadre photo. Réglé sur **jamais** par défaut : rien ne se lance
+  sans qu'on le demande. Le compte repart au moindre geste, souris, clavier ou
+  manette, et rien ne démarre pendant qu'une fenêtre ou un formulaire est ouvert.
+
+## Enregistrer une copie
+
+*Clic droit sur une photo → **Enregistrer***, ou le bouton **Enregistrer** de la
+barre de sélection pour tout un lot.
+
+* Une seule photo arrive telle quelle, avec son nom d'origine.
+* Plusieurs arrivent dans une archive ZIP, `photon-2026-08-31.zip`, fabriquée à
+  la volée : le téléchargement démarre tout de suite, sans fichier temporaire ni
+  attente. Deux photos qui portent le même nom sont numérotées, aucune n'écrase
+  l'autre.
+
+C'est une **copie**, et rien d'autre. Les fichiers d'origine ne sont ni
+déplacés, ni renommés, ni effacés — c'est le navigateur qui reçoit le
+téléchargement et vous demande où le ranger. Pratique depuis un téléphone : on
+récupère les photos du PC sans câble.
+
+En mode enfant, les photos cachées sont exclues du téléchargement.
+
 ## Lieux
 
 Si vos photos contiennent des coordonnées GPS, Photon les traduit en nom de
@@ -362,8 +459,8 @@ puis la lecture devient normale — et instantanée les fois suivantes.
 
 **Back** à la manette, **Alt+S** au clavier, ou clic droit → *Sélection*. Une
 pastille apparaît alors sur chaque photo : cochez celles qui vous intéressent,
-puis *Ajouter à un album*, *Modifier les tags* ou *Cacher* s'appliquent à toute
-la sélection d'un coup.
+puis *Ajouter à un album*, *Enregistrer*, *Modifier les tags* ou *Cacher*
+s'appliquent à toute la sélection d'un coup.
 
 **Une journée entière** se prend d'un seul geste : la même pastille apparaît à
 droite de chaque date. Un clic coche toute la journée, un second la relâche.
@@ -486,8 +583,9 @@ npm start
 * Les photos **HEIC** (iPhone) sont décodées par une bibliothèque JavaScript de
   secours : la première génération de vignettes est nettement plus lente que
   pour du JPEG. Une fois faites, elles sont en cache.
-* Le curseur de dates **ancre** la chronologie au mois choisi (elle démarre là).
-  Pour revenir au plus récent, le bouton *Aujourd'hui* en haut à droite.
+* Le curseur de dates fait **défiler** jusqu'au mois choisi, il ne filtre pas :
+  tout ce qui est plus récent reste au-dessus. Pour remonter d'un geste, le
+  bouton *Aujourd'hui* en haut à droite.
 * Le champ « TBD » de la barre de recherche est resté vide, comme convenu.
 * Les dossiers s'ajoutent en tapant leur chemin : un navigateur ne peut pas
   ouvrir de sélecteur de dossiers système sans y être autorisé fichier par
@@ -498,6 +596,18 @@ npm start
 * La surveillance des dossiers s'appuie sur le système de fichiers ; certains
   partages réseau la refusent. Dans ce cas le bouton *Relancer le scan* reste
   disponible, et le scan de démarrage fait le travail.
+* Le **démarrage automatique** du diaporama est vérifié toutes les quinze
+  secondes : avec un délai d'une minute, il peut donc partir jusqu'à un quart de
+  minute plus tard. Sans conséquence pour un cadre photo.
+* Un **moment** ne peut pas descendre sous quatre photos ni changer de seuil
+  depuis l'interface : les valeurs (huit heures, quatre photos) sont écrites
+  dans le code. Elles conviennent à des photos de famille ; une pratique très
+  différente demanderait de les toucher.
+* Le **téléchargement groupé** est plafonné à 2000 photos par archive. Au-delà,
+  copier le dossier directement est plus simple et plus rapide.
+* L'archive ZIP est en mode « stocké » : les photos et les vidéos étant déjà
+  compressées, la recompresser ne gagnerait rien et empêcherait de commencer
+  l'envoi avant d'avoir tout lu.
 * La conversion d'une vidéo HEVC prend du temps la première fois : comptez à peu
   près la durée de la vidéo elle-même pour du 1080p, davantage en 4K. C'est fait
   une seule fois par vidéo, ensuite la lecture est immédiate. Ces copies

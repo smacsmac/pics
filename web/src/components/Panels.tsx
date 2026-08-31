@@ -1,8 +1,13 @@
 import type { Lang } from '../../../shared/types';
 import { LANGS, monthNames } from '../lib/i18n';
-import { FONT_BOXES, FONT_MAX, HUES, VOLUME_BOXES, VOLUME_MAX, rightRows } from '../lib/panels';
+import {
+  FONT_BOXES, FONT_MAX, HUES, SCREENSAVER_MINUTES, SLIDE_SECONDS, VOLUME_BOXES, VOLUME_MAX,
+  rightRows,
+} from '../lib/panels';
 import { useStore, type MonthValue } from '../lib/store';
-import { IconChild, IconEye, IconFolder, IconFont, IconGlobe, IconPalette, IconVolume } from './Icons';
+import {
+  IconChild, IconEye, IconFolder, IconFont, IconGlobe, IconPalette, IconSlideshow, IconVolume,
+} from './Icons';
 
 /** Valeur affichée dans [mois] [année] : le filtre s'il existe, sinon la borne. */
 export function displayMonth(value: MonthValue | null, fallbackTs: number | null): MonthValue {
@@ -214,6 +219,31 @@ export function SettingsPanel({ onFocusRow }: PanelProps): React.JSX.Element {
     </div>
   );
 
+  /**
+   * Un réglage du diaporama : son nom à gauche, sa valeur à droite. Le tout est
+   * un bouton, donc un clic avance la valeur — comme A à la manette.
+   */
+  const slideField = (
+    sub: number,
+    label: string,
+    value: string,
+    active: boolean,
+    onNext: () => void,
+  ): React.JSX.Element => (
+    <button
+      className={`slide-field${active ? ' on' : ''}${
+        rowAt('slideshow') && nav.subIndex === sub ? ' aim' : ''
+      }`}
+      onClick={() => {
+        onFocusRow(indexOf('slideshow'), sub);
+        onNext();
+      }}
+    >
+      <span className="k">{label}</span>
+      <span className="v">{value}</span>
+    </button>
+  );
+
   const photoRoots = (state?.roots ?? []).filter((r) => r.kind === 'photos');
 
   return (
@@ -257,6 +287,58 @@ export function SettingsPanel({ onFocusRow }: PanelProps): React.JSX.Element {
               aria-label={`${t.theme} ${hue}`}
             />
           ))}
+        </div>
+      </div>
+
+      {/* Réglages du diaporama. Chaque champ occupe sa propre ligne, libellé à
+          gauche et valeur à droite : sur une barre de 208 px, deux réglages
+          côte à côte tronquaient leur nom (« mouve… »). ←/→ passent d'un champ
+          à l'autre à la manette, LB/RB en changent la valeur, A l'avance. */}
+      <div
+        className={`panel-row${rowAt('slideshow') ? ' on' : ''}`}
+        onMouseEnter={() => onFocusRow(indexOf('slideshow'))}
+      >
+        <div className="row-line">
+          <IconSlideshow />
+          <span className="lab">{t.slideshow}</span>
+        </div>
+
+        <div className="slide-settings">
+          {slideField(0, t.slideshowSpeed, `${settings.slideshowSeconds} s`, false, () => {
+            const i = SLIDE_SECONDS.indexOf(settings.slideshowSeconds);
+            patchSettings({ slideshowSeconds: SLIDE_SECONDS[(i + 1) % SLIDE_SECONDS.length] });
+          })}
+
+          {slideField(
+            1,
+            t.slideshowShuffle,
+            settings.slideshowShuffle ? t.slideshowOn : t.slideshowOff,
+            settings.slideshowShuffle,
+            () => patchSettings({ slideshowShuffle: !settings.slideshowShuffle }),
+          )}
+
+          {slideField(
+            2,
+            t.slideshowPan,
+            settings.slideshowPan ? t.slideshowOn : t.slideshowOff,
+            settings.slideshowPan,
+            () => patchSettings({ slideshowPan: !settings.slideshowPan }),
+          )}
+
+          {slideField(
+            3,
+            t.screensaver,
+            settings.screensaverMinutes > 0
+              ? t.minutesShort(settings.screensaverMinutes)
+              : t.screensaverOff,
+            settings.screensaverMinutes > 0,
+            () => {
+              const i = SCREENSAVER_MINUTES.indexOf(settings.screensaverMinutes);
+              patchSettings({
+                screensaverMinutes: SCREENSAVER_MINUTES[(i + 1) % SCREENSAVER_MINUTES.length],
+              });
+            },
+          )}
         </div>
       </div>
 

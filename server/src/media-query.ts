@@ -1,4 +1,6 @@
-import type { HistogramBucket, Lang, MediaItem, MediaPage } from '../../shared/types.js';
+import type {
+  Chapter, HistogramBucket, Lang, MediaItem, MediaPage, OnThisDay,
+} from '../../shared/types.js';
 import { db, FAVORITES_ID } from './db.js';
 import { formatPlace } from './geocode.js';
 
@@ -214,6 +216,21 @@ export function getMedia(id: number, lang: Lang): MediaItem | null {
   return decorate([row], lang)[0];
 }
 
+/**
+ * Récupère un lot de photos par identifiants, dans l'ordre demandé. C'est ce
+ * qui permet à un diaporama de partir d'un chapitre : la liste vient déjà
+ * ordonnée, et SQLite la rendrait autrement.
+ */
+export function getMediaByIds(ids: number[], lang: Lang): MediaItem[] {
+  if (ids.length === 0) return [];
+  const placeholders = ids.map(() => '?').join(',');
+  const rows = db
+    .prepare(`SELECT ${SELECT_COLS} FROM media m WHERE m.id IN (${placeholders}) AND m.missing = 0`)
+    .all(...ids) as MediaRow[];
+  const byId = new Map(decorate(rows, lang).map((item) => [item.id, item]));
+  return ids.map((id) => byId.get(id)).filter((item): item is MediaItem => item !== undefined);
+}
+
 /** Alimente le curseur de dates latéral : un point par mois. */
 export function histogram(filters: Filters): HistogramBucket[] {
   const { sql, params, joins } = buildWhere(filters);
@@ -272,4 +289,116 @@ export function randomFavorite(): number | null {
     )
     .get(FAVORITES_ID) as { id: number } | undefined;
   return row?.id ?? null;
+}
+
+// ---------------------------------------------------------------- souvenirs
+
+/** Un nouveau chapitre démarre après ce silence, ou en changeant de ville. */
+const CHAPTER_GAP_MS = 8 * 60 * 60 * 1000;
+/** En deçà, ce n'est pas un moment : deux photos prises en passant. */
+const CHAPTER_MIN = 4;
+/** Vignettes montrées sur la carte d'un moment. */
+const PREVIEW_MAX = 5;
+
+/**
+ * Découpe la bibliothèque en « moments » : une suite de photos rapprochées dans
+ * le temps et prises au même endroit. Vingt photos en un après-midi à Hamilton
+ * forment une sortie ; deux photos isolées, non.
+ *
+ * Rien n'est stocké : le découpage se recalcule, donc il suit la bibliothèque
+ * sans jamais se périmer.
+ */
+export function chapters(limit = 120): Chapter[] {
+  const rows = db
+    .prepare(
+      `SELECT id, taken_at, place_city, kind, thumb_state, rotation
+         FROM media
+        WHERE missing = 0 AND hidden = 0
+        ORDER BY taken_at DESC`,
+    )
+    .all() as Array<{
+      id: number;
+      taken_at: number;
+      place_city: string | null;
+      kind: string;
+      thumb_state: string;
+      rotation: number;
+    }>;
+
+  const out: Chapter[] = [];
+  let current: typeof rows = [];
+
+  const flush = (): void => {
+    if (current.length < CHAPTER_MIN) {
+      current = [];
+      return;
+    }
+    // Les photos sont parcourues du plus récent au plus ancien.
+    const last = current[0];
+    const first = current[current.length - 1];
+    const cover = current.find((r) => r.kind === 'photo' && r.thumb_state === 'ready') ?? current[0];
+    // La bande de la carte : la couverture d'abord, puis d'autres photos prêtes
+    // prises un peu partout dans le moment plutôt que toutes au même instant.
+    const rest = current.filter((r) => r.id !== cover.id && r.thumb_state === 'ready');
+    const stride = Math.max(1, Math.floor(rest.length / PREVIEW_MAX));
+    const preview = [cover, ...rest.filter((_, i) => i % stride === 0)]
+      .slice(0, PREVIEW_MAX)
+      .map((r) => ({ id: r.id, rotation: r.rotation }));
+
+    out.push({
+      id: `${first.taken_at}-${last.taken_at}`,
+      from: first.taken_at,
+      to: last.taken_at,
+      city: first.place_city,
+      count: current.length,
+      coverId: cover.id,
+      preview,
+      ids: current.map((r) => r.id).reverse(),
+    });
+    current = [];
+  };
+
+  for (const row of rows) {
+    if (current.length > 0) {
+      const previous = current[current.length - 1];
+      const gap = previous.taken_at - row.taken_at;
+      // Un lieu inconnu ne coupe pas : sans GPS, seul le temps décide.
+      const moved =
+        previous.place_city !== null && row.place_city !== null &&
+        previous.place_city !== row.place_city;
+      if (gap > CHAPTER_GAP_MS || moved) flush();
+    }
+    current.push(row);
+    if (out.length >= limit) break;
+  }
+  flush();
+
+  return out.slice(0, limit);
+}
+
+/** Les photos prises un même jour de l'année, les années précédentes. */
+export function onThisDay(lang: Lang): OnThisDay[] {
+  const now = new Date();
+  const md = `${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const rows = db
+    .prepare(
+      `SELECT ${SELECT_COLS} FROM media m
+        WHERE m.missing = 0 AND m.hidden = 0
+          AND strftime('%m-%d', m.taken_at / 1000, 'unixepoch', 'localtime') = ?
+          AND strftime('%Y', m.taken_at / 1000, 'unixepoch', 'localtime') <> ?
+        ORDER BY m.taken_at DESC`,
+    )
+    .all(md, String(now.getFullYear())) as MediaRow[];
+
+  const items = decorate(rows, lang);
+  const byYear = new Map<number, MediaItem[]>();
+  for (const item of items) {
+    const year = new Date(item.takenAt).getFullYear();
+    const list = byYear.get(year);
+    if (list) list.push(item);
+    else byYear.set(year, [item]);
+  }
+  return [...byYear.entries()]
+    .sort((a, b) => b[0] - a[0])
+    .map(([year, list]) => ({ year, items: list }));
 }

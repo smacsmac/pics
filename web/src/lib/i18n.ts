@@ -169,6 +169,33 @@ const en = {
   videoMusic: 'music during videos',
   videoMusicHint: 'of the global volume while a video is on screen. 0 = silent.',
 
+  memories: 'Memories',
+  onThisDay: 'On this day',
+  onThisDayEmpty: 'Nothing was taken on this date in earlier years — come back tomorrow.',
+  yearsAgo: (n: number) => (n === 1 ? 'a year ago' : `${n} years ago`),
+  moments: 'Moments',
+  momentsHint: 'Photon groups photos taken close together into moments. Nothing is stored: they follow your library on their own.',
+  noMoments: 'Not enough photos yet to make moments',
+  makeAlbum: 'Make an album',
+  momentSaved: (name: string) => `Album « ${name} » created`,
+  playSlideshow: 'Play',
+  slideshow: 'Slideshow',
+  slideshowEmpty: 'Nothing to play here',
+  slideshowSpeed: 'photo lasts',
+  slideshowOn: 'on',
+  slideshowOff: 'off',
+  slideshowShuffle: 'shuffle',
+  slideshowPan: 'motion',
+  screensaver: 'auto start',
+  screensaverOff: 'never',
+  minutesShort: (n: number) => `${n} min`,
+  paused: 'Paused',
+  slideshowHint: 'A pause · ← → · B quit',
+
+  download: 'Save',
+  downloadHint: 'A copy on this device — the originals stay on the PC',
+  downloadStarted: 'Download started — the originals stay where they are',
+
   controls: 'Controls',
   today: 'Today',
   unknownDate: 'Undated',
@@ -334,6 +361,33 @@ const fr: Dict = {
   videoMusic: 'musique pendant les vidéos',
   videoMusicHint: 'du volume global quand une vidéo est à l’écran. 0 = silence.',
 
+  memories: 'Souvenirs',
+  onThisDay: 'Ce jour-là',
+  onThisDayEmpty: 'Rien n’a été pris à cette date les années passées — revenez demain.',
+  yearsAgo: (n: number) => (n === 1 ? 'il y a un an' : `il y a ${n} ans`),
+  moments: 'Moments',
+  momentsHint: 'Photon rassemble les photos prises coup sur coup en « moments ». Rien n’est enregistré : ils suivent votre bibliothèque tout seuls.',
+  noMoments: 'Pas encore assez de photos pour former des moments',
+  makeAlbum: 'En faire un album',
+  momentSaved: (name: string) => `Album « ${name} » créé`,
+  playSlideshow: 'Lancer',
+  slideshow: 'Diaporama',
+  slideshowEmpty: 'Rien à faire défiler ici',
+  slideshowSpeed: 'durée d’une photo',
+  slideshowOn: 'oui',
+  slideshowOff: 'non',
+  slideshowShuffle: 'aléatoire',
+  slideshowPan: 'mouvement',
+  screensaver: 'démarrage auto',
+  screensaverOff: 'jamais',
+  minutesShort: (n: number) => `${n} min`,
+  paused: 'En pause',
+  slideshowHint: 'A pause · ← → · B quitter',
+
+  download: 'Enregistrer',
+  downloadHint: 'Une copie sur cet appareil — les originaux restent sur le PC',
+  downloadStarted: 'Téléchargement lancé — les originaux ne bougent pas',
+
   controls: 'Contrôles',
   today: 'Aujourd’hui',
   unknownDate: 'Sans date',
@@ -494,6 +548,33 @@ const ko: Dict = {
   videoMusic: '동영상 재생 중 음악',
   videoMusicHint: '동영상이 화면에 있을 때 전체 음량 대비. 0 = 무음.',
 
+  memories: '추억',
+  onThisDay: '그날의 사진',
+  onThisDayEmpty: '지난 해 오늘 찍은 사진이 없습니다 — 내일 다시 확인해 보세요.',
+  yearsAgo: (n: number) => `${n}년 전`,
+  moments: '순간',
+  momentsHint: '가까운 시간에 찍은 사진을 하나의 « 순간 »으로 묶습니다. 따로 저장하지 않으므로 보관함이 바뀌면 함께 바뀝니다.',
+  noMoments: '아직 순간을 만들 만큼 사진이 많지 않습니다',
+  makeAlbum: '앨범으로 만들기',
+  momentSaved: (name: string) => `« ${name} » 앨범을 만들었습니다`,
+  playSlideshow: '재생',
+  slideshow: '슬라이드 쇼',
+  slideshowEmpty: '여기에는 재생할 사진이 없습니다',
+  slideshowSpeed: '사진 시간',
+  slideshowOn: '켜짐',
+  slideshowOff: '꺼짐',
+  slideshowShuffle: '무작위',
+  slideshowPan: '움직임',
+  screensaver: '자동 시작',
+  screensaverOff: '사용 안 함',
+  minutesShort: (n: number) => `${n}분`,
+  paused: '일시정지',
+  slideshowHint: 'A 일시정지 · ← → · B 종료',
+
+  download: '저장',
+  downloadHint: '이 기기에 사본을 저장합니다 — 원본은 PC에 그대로 있습니다',
+  downloadStarted: '다운로드를 시작했습니다 — 원본은 그대로 있습니다',
+
   controls: '조작',
   today: '오늘',
   unknownDate: '날짜 없음',
@@ -538,4 +619,30 @@ export function formatDateTime(ts: number, lang: Lang): string {
     dateStyle: 'full',
     timeStyle: 'short',
   }).format(new Date(ts));
+}
+
+/**
+ * Les bornes d'un moment. Une sortie d'après-midi donne « 12 juillet 2026,
+ * 9 h – 17 h » ; un week-end, « 12 – 14 juillet 2026 ». Intl s'en charge selon
+ * la langue, y compris pour le coréen.
+ */
+export function formatSpan(from: number, to: number, lang: Lang): string {
+  const start = new Date(from);
+  const end = new Date(to);
+  const sameDay =
+    start.getFullYear() === end.getFullYear() &&
+    start.getMonth() === end.getMonth() &&
+    start.getDate() === end.getDate();
+
+  if (sameDay) {
+    const day = new Intl.DateTimeFormat(LOCALE[lang], {
+      day: 'numeric', month: 'long', year: 'numeric',
+    }).format(start);
+    const hours = new Intl.DateTimeFormat(LOCALE[lang], { timeStyle: 'short' });
+    return `${day}, ${hours.formatRange(start, end)}`;
+  }
+
+  return new Intl.DateTimeFormat(LOCALE[lang], {
+    day: 'numeric', month: 'long', year: 'numeric',
+  }).formatRange(start, end);
 }

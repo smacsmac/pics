@@ -12,13 +12,18 @@ import {
 } from './auth.js';
 import { db, FAVORITES_ID, pruneOrphanTags, tagId } from './db.js';
 import {
-  dateBounds, distinctPlaces, getMedia, histogram, queryMedia, randomFavorite, type Filters,
+  chapters, dateBounds, distinctPlaces, getMedia, getMediaByIds, histogram, onThisDay,
+  queryMedia, randomFavorite, type Filters,
 } from './media-query.js';
 import { PORT, thumbPath } from './paths.js';
 import { backfillPlaces, onScanProgress, scan, status as scanStatus } from './scanner.js';
 import { getSettings, saveSettings } from './settings.js';
 import { nearestThumbSize, removeThumbs } from './thumbs.js';
 import { playbackInfo, proxyFile, removeProxy } from './transcode.js';
+import { zipStream } from './zip.js';
+
+/** Plafond d'un téléchargement groupé : au-delà, mieux vaut copier le dossier. */
+const DOWNLOAD_MAX = 2000;
 
 const MIME: Record<string, string> = {
   '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.jpe': 'image/jpeg', '.png': 'image/png',
@@ -207,6 +212,16 @@ function rootRows(): Root[] {
   return rows.map((r) => ({ ...r, exists: fs.existsSync(r.path) }));
 }
 
+/**
+ * En-tête `content-disposition` pour un nom de fichier quelconque. Les accents
+ * (« Été 2019.jpg ») ne passent pas en ASCII : on donne une version dépouillée
+ * pour les vieux navigateurs, et le vrai nom encodé en UTF-8 à côté.
+ */
+function attachment(filename: string): string {
+  const plain = filename.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
+  return `attachment; filename="${plain}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
+}
+
 /** Envoie un fichier avec support des requêtes Range (indispensable pour les vidéos). */
 async function sendFile(req: FastifyRequest, reply: FastifyReply, file: string): Promise<void> {
   let stat: fs.Stats;
@@ -333,6 +348,62 @@ export function registerRoutes(app: FastifyInstance, onRootsChanged: () => void 
   });
 
   /**
+   * Enregistrer une sélection sur l'appareil qui regarde. Une seule photo part
+   * telle quelle ; plusieurs sont empaquetées dans un ZIP écrit au fil de l'eau,
+   * sans fichier temporaire.
+   *
+   * C'est une copie, rien d'autre : les fichiers d'origine ne sont ni déplacés,
+   * ni renommés, ni effacés.
+   */
+  app.get('/api/media/download', async (req, reply) => {
+    const admin = isAdmin(req);
+    const ids = (parseList((req.query as { ids?: string }).ids) ?? [])
+      .map(Number)
+      .filter((n) => Number.isFinite(n))
+      .slice(0, DOWNLOAD_MAX);
+    if (ids.length === 0) return reply.code(400).send({ error: 'no_ids' });
+
+    const placeholders = ids.map(() => '?').join(',');
+    const rows = db
+      .prepare(
+        `SELECT id, path, filename, mtime, hidden FROM media
+          WHERE id IN (${placeholders}) AND missing = 0`,
+      )
+      .all(...ids) as Array<{
+        id: number; path: string; filename: string; mtime: number; hidden: number;
+      }>;
+
+    // Une photo cachée ne s'exporte pas en mode enfant : elle est cachée.
+    const allowed = rows.filter((r) => admin || r.hidden === 0);
+    if (allowed.length === 0) return reply.code(404).send({ error: 'not_found' });
+
+    // On respecte l'ordre demandé par l'interface, pas celui de SQLite.
+    const byId = new Map(allowed.map((r) => [r.id, r]));
+    const picked = ids.map((id) => byId.get(id)).filter((r) => r !== undefined);
+
+    if (picked.length === 1) {
+      const only = picked[0];
+      void reply.header('content-disposition', attachment(only.filename));
+      return sendFile(req, reply, only.path);
+    }
+
+    const stamp = new Date().toISOString().slice(0, 10);
+    return reply
+      .header('content-type', 'application/zip')
+      .header('cache-control', 'no-store')
+      .header('content-disposition', attachment(`photon-${stamp}.zip`))
+      .send(
+        zipStream(
+          picked.map((r) => ({
+            path: r.path,
+            name: r.filename,
+            mtime: new Date(r.mtime || Date.now()),
+          })),
+        ),
+      );
+  });
+
+  /**
    * Comment lire cette vidéo ? Réponse immédiate : soit le fichier d'origine
    * convient, soit une copie H.264 est prête, soit elle est en préparation et
    * l'interface affiche l'avancement.
@@ -395,6 +466,61 @@ export function registerRoutes(app: FastifyInstance, onRootsChanged: () => void 
     });
     run();
     return { changed: ids.length };
+  });
+
+  // ---------------------------------------------------------------- souvenirs
+
+  /** Le découpage en moments. Recalculé à chaque appel, jamais stocké. */
+  app.get('/api/chapters', async (req) => {
+    const limit = Math.min(400, Math.max(1, parseNum((req.query as { limit?: string }).limit) ?? 120));
+    return chapters(limit);
+  });
+
+  /** « Ce jour-là » : les photos prises un même jour, les années précédentes. */
+  app.get('/api/media/on-this-day', async () => onThisDay(getSettings().lang));
+
+  /** Un lot de photos par identifiants : de quoi lancer un diaporama d'un moment. */
+  app.get('/api/media/by-ids', async (req) => {
+    const admin = isAdmin(req);
+    const ids = (parseList((req.query as { ids?: string }).ids) ?? [])
+      .map(Number)
+      .filter((n) => Number.isFinite(n))
+      .slice(0, DOWNLOAD_MAX);
+    const items = getMediaByIds(ids, getSettings().lang);
+    return admin ? items : items.filter((item) => !item.hidden);
+  });
+
+  /**
+   * Transforme un chapitre en véritable album. Le chapitre n'existe qu'en
+   * mémoire et se redécoupera au gré des ajouts ; en faire un album, c'est
+   * figer le moment pour de bon.
+   */
+  app.post('/api/albums/from-chapter', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return;
+    const body = req.body as { name?: string; ids?: number[]; color?: number };
+    const name = (body.name ?? '').trim();
+    const ids = (body.ids ?? []).filter((n) => Number.isFinite(n));
+    if (!name) return reply.code(400).send({ error: 'name_required' });
+    if (ids.length === 0) return reply.code(400).send({ error: 'empty_chapter' });
+
+    const now = Date.now();
+    const create = db.transaction(() => {
+      const info = db
+        .prepare(
+          `INSERT INTO albums (name, color, music_slot, video_music_pct, background,
+                               background_opacity, kind, created_at, updated_at)
+           VALUES (?, ?, NULL, 20, NULL, 35, 'user', ?, ?)`,
+        )
+        .run(name, Math.round(body.color ?? getSettings().hue), now, now);
+      const albumId = Number(info.lastInsertRowid);
+      const link = db.prepare(
+        `INSERT OR IGNORE INTO album_media (album_id, media_id, added_at) VALUES (?, ?, ?)`,
+      );
+      for (const mediaId of ids) link.run(albumId, mediaId, now);
+      return albumId;
+    });
+    const id = create();
+    return { album: albumRows().find((a) => a.id === id), albums: albumRows() };
   });
 
   // ------------------------------------------------------------------- albums

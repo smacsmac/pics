@@ -78,6 +78,17 @@ export interface Settings {
   albumSort: AlbumSort;
   /** Si vrai, seul un admin déverrouillé peut envoyer des photos. */
   uploadRequiresAdmin: boolean;
+  /** Secondes d'affichage par photo dans le diaporama (2 à 30). */
+  slideshowSeconds: number;
+  /** Le diaporama tire les photos au hasard au lieu de suivre l'ordre. */
+  slideshowShuffle: boolean;
+  /** Léger mouvement de caméra sur chaque photo (effet Ken Burns). */
+  slideshowPan: boolean;
+  /**
+   * Minutes d'inactivité avant que le diaporama démarre tout seul. 0 = jamais,
+   * ce qui reste le réglage par défaut : rien ne bouge sans qu'on le demande.
+   */
+  screensaverMinutes: number;
 }
 
 export interface Root {
@@ -174,4 +185,32 @@ export interface PlaybackInfo {
   /** URL à donner à la balise vidéo, une fois prête. */
   url: string | null;
   vcodec: string | null;
+}
+
+/**
+ * Un « moment » : une suite de photos rapprochées dans le temps et prises au
+ * même endroit. Rien n'est stocké en base — le découpage se recalcule à chaque
+ * demande, donc il suit la bibliothèque sans jamais se périmer.
+ */
+export interface Chapter {
+  /** Identifiant stable, dérivé des bornes : il survit à un rechargement. */
+  id: string;
+  from: number;
+  to: number;
+  city: string | null;
+  count: number;
+  coverId: number | null;
+  /**
+   * Quelques photos pour la bande de la carte. L'angle voyage avec, sinon une
+   * photo redressée garderait sa vieille vignette de travers.
+   */
+  preview: Array<{ id: number; rotation: number }>;
+  /** Les photos du chapitre, dans l'ordre chronologique. */
+  ids: number[];
+}
+
+/** Les photos prises un même jour de l'année, une entrée par année passée. */
+export interface OnThisDay {
+  year: number;
+  items: MediaItem[];
 }

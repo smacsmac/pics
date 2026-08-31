@@ -2,7 +2,8 @@ import { useEffect, useRef } from 'react';
 import type { Album } from '../../../shared/types';
 import { useStore } from '../lib/store';
 import {
-  IconAlbum, IconGear, IconHeart, IconHome, IconPlus, IconSearch, IconUpload, IconVideo,
+  IconAlbum, IconGear, IconHeart, IconHome, IconPlus, IconSearch, IconSparkle, IconUpload,
+  IconVideo,
 } from './Icons';
 
 /**
@@ -16,9 +17,10 @@ export const TOP = {
   ALBUMS: 2,
   FAVORITES: 3,
   VIDEOS: 4,
-  NEW_ALBUM: 5,
-  UPLOAD: 6,
-  RECENT_START: 7,
+  MEMORIES: 5,
+  NEW_ALBUM: 6,
+  UPLOAD: 7,
+  RECENT_START: 8,
 } as const;
 
 export function settingsIndex(recentVisible: number): number {
@@ -75,6 +77,7 @@ export function TopBar({
       case TOP.HOME: return view.kind === 'timeline';
       case TOP.ALBUMS: return view.kind === 'albums';
       case TOP.VIDEOS: return view.kind === 'videos';
+      case TOP.MEMORIES: return view.kind === 'memories';
       case TOP.NEW_ALBUM: return view.kind === 'newAlbum';
       default: return false;
     }
@@ -109,6 +112,7 @@ export function TopBar({
       {button(TOP.ALBUMS, t.albums, IconAlbum)}
       {button(TOP.FAVORITES, t.favorites, IconHeart)}
       {button(TOP.VIDEOS, t.videos, IconVideo)}
+      {button(TOP.MEMORIES, t.memories, IconSparkle)}
       {button(TOP.NEW_ALBUM, t.newAlbum, IconPlus)}
       {button(TOP.UPLOAD, t.upload, IconUpload)}
 

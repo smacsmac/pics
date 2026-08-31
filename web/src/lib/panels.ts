@@ -38,6 +38,8 @@ export function rightRows(isAdmin: boolean): PanelRow[] {
     { id: 'font', sub: 1 },
     { id: 'volume', sub: 1 },
     { id: 'theme', sub: 1 },
+    // Diaporama : [secondes] [aléatoire] [mouvement] [démarrage auto].
+    { id: 'slideshow', sub: 4 },
     { id: 'admin', sub: 1 },
   ];
   if (isAdmin) rows.push({ id: 'folders', sub: 1 });
@@ -48,6 +50,11 @@ export function rightRows(isAdmin: boolean): PanelRow[] {
 
 /** Les teintes proposées pour le thème : un arc-en-ciel néon. */
 export const HUES = [285, 320, 350, 20, 45, 80, 150, 190, 220, 250];
+
+/** Durées proposées pour une photo de diaporama, en secondes. */
+export const SLIDE_SECONDS = [2, 3, 4, 5, 7, 10, 15, 20, 30];
+/** Délais avant le démarrage automatique, en minutes. 0 = jamais. */
+export const SCREENSAVER_MINUTES = [0, 1, 2, 5, 10, 15, 30, 60];
 
 /**
  * Valeurs maximales des réglages, et nombre de cases dessinées pour chacun.

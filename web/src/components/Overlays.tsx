@@ -6,8 +6,8 @@ import { useInput } from '../lib/input';
 import { HUES } from '../lib/panels';
 import { useStore } from '../lib/store';
 import {
-  IconCheck, IconExpand, IconHeart, IconHide, IconPalette, IconPencil, IconPin, IconPlus, IconRotate,
-  IconSelect, IconTag, IconTrash, IconX,
+  IconCheck, IconDownload, IconExpand, IconHeart, IconHide, IconPalette, IconPencil, IconPin,
+  IconPlus, IconRotate, IconSelect, IconTag, IconTrash, IconX,
 } from './Icons';
 
 /** Enferme le curseur d'une liste dans ses bornes, avec bouclage. */
@@ -962,6 +962,7 @@ export function ContextMenu({
   onRemoveFromAlbum,
   onSetCover,
   onRotate,
+  onDownload,
 }: {
   target: MenuTarget;
   onClose: () => void;
@@ -974,6 +975,7 @@ export function ContextMenu({
   onRemoveFromAlbum: () => void;
   onSetCover: () => void;
   onRotate: () => void;
+  onDownload: () => void;
 }): React.JSX.Element {
   const { t } = useStore();
 
@@ -1005,6 +1007,11 @@ export function ContextMenu({
       </button>
       <button className="menu-item" onClick={onSelectMode}>
         <IconSelect /> {t.selectMode}
+      </button>
+      {/* Enregistrer une copie sur l'appareil qui regarde. Le fichier d'origine
+          reste où il est, sur le PC. */}
+      <button className="menu-item" title={t.downloadHint} onClick={onDownload}>
+        <IconDownload /> {t.download}
       </button>
 
       {/* Ces entrées restent visibles même verrouillé : c'est l'action qui

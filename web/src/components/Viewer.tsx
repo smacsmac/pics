@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import type { MediaItem, PlaybackInfo } from '../../../shared/types';
+import type { MediaItem } from '../../../shared/types';
 import { api } from '../lib/api';
 import { formatBytes } from '../lib/format';
 import { formatDateTime } from '../lib/i18n';
+import { usePlayback } from '../lib/playback';
 import { useStore } from '../lib/store';
 
 /**
@@ -23,7 +24,7 @@ export function Viewer({
 }): React.JSX.Element {
   const { settings, t } = useStore();
   const [hintVisible, setHintVisible] = useState(true);
-  const [playback, setPlayback] = useState<PlaybackInfo | null>(null);
+  const playback = usePlayback(item);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
@@ -31,35 +32,6 @@ export function Viewer({
     const timer = setTimeout(() => setHintVisible(false), 2200);
     return () => clearTimeout(timer);
   }, [item.id]);
-
-  /**
-   * Une vidéo du téléphone est souvent en HEVC, que le navigateur ne décode
-   * pas : on demande au serveur par quoi la lire. Tant que la copie H.264 se
-   * prépare, on suit l'avancement plutôt que d'afficher une image figée.
-   */
-  useEffect(() => {
-    setPlayback(null);
-    if (item.kind !== 'video') return;
-    let stop = false;
-    let timer: number | undefined;
-
-    const ask = async (): Promise<void> => {
-      try {
-        const info = await api.playback(item.id);
-        if (stop) return;
-        setPlayback(info);
-        if (info.state === 'working') timer = window.setTimeout(() => void ask(), 1000);
-      } catch {
-        if (!stop) setPlayback({ direct: true, state: 'ready', progress: 1, url: api.fileUrl(item.id), vcodec: null });
-      }
-    };
-    void ask();
-
-    return () => {
-      stop = true;
-      if (timer !== undefined) window.clearTimeout(timer);
-    };
-  }, [item.id, item.kind]);
 
   useEffect(() => {
     const video = videoRef.current;

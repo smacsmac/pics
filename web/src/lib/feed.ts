@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { MediaItem, MediaQuery } from '../../../shared/types';
+import type { Chapter, MediaItem, MediaQuery, OnThisDay } from '../../../shared/types';
 import { api } from './api';
 
 const PAGE_SIZE = 200;
@@ -121,6 +121,52 @@ export function groupByDay(items: MediaItem[]): DaySection[] {
     current.items.push(item);
   }
   return sections;
+}
+
+export interface Memories {
+  onThisDay: OnThisDay[];
+  chapters: Chapter[];
+  loading: boolean;
+  reload: () => void;
+}
+
+/**
+ * Les deux sources de l'écran Souvenirs. Elles se recalculent côté serveur à
+ * chaque demande : on ne les charge donc que lorsque l'écran est ouvert, et on
+ * les redemande après un ajout de photos.
+ */
+export function useMemories(active: boolean, nonce = 0): Memories {
+  const [onThisDay, setOnThisDay] = useState<OnThisDay[]>([]);
+  const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [ownNonce, setOwnNonce] = useState(0);
+
+  useEffect(() => {
+    if (!active) return;
+    let cancelled = false;
+    setLoading(true);
+    Promise.all([api.onThisDay(), api.chapters()])
+      .then(([days, moments]) => {
+        if (cancelled) return;
+        setOnThisDay(days);
+        setChapters(moments);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setOnThisDay([]);
+          setChapters([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [active, nonce, ownNonce]);
+
+  const reload = useCallback(() => setOwnNonce((n) => n + 1), []);
+  return { onThisDay, chapters, loading, reload };
 }
 
 export function useHistogram(query: MediaQuery, active = true): Array<{ month: number; count: number }> {

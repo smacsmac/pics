@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Album, MediaItem, ZoomKey } from '../../shared/types';
+import type { Album, Chapter, MediaItem, OnThisDay, ZoomKey } from '../../shared/types';
 import {
   AlbumForm, AlbumMusic, AlbumsGrid, albumFields, clampPercent, type AlbumDraft,
 } from './components/Albums';
 import {
-  IconChild, IconCompact, IconGamepad, IconPencil, IconRows, IconSelect, IconSort, IconX,
-  IconZoomIn, IconZoomOut,
+  IconChild, IconCompact, IconDownload, IconGamepad, IconPencil, IconRows, IconSelect,
+  IconSlideshow, IconSort, IconX, IconZoomIn, IconZoomOut,
 } from './components/Icons';
+import { MemoriesView, chapterName } from './components/Memories';
+import { Slideshow } from './components/Slideshow';
 import {
   AddToAlbumSheet, AdminSheet, AlbumContextMenu, AlbumTagsSheet, ContextMenu, FoldersSheet,
   AlbumSortSheet, MonthPickerSheet, Osk, PlacePickerSheet, TagEditorSheet, TagPickerSheet, Toasts,
@@ -18,14 +20,16 @@ import { DateScrubber, Timeline } from './components/Timeline';
 import { TOP, TopBar, settingsIndex, topCount } from './components/TopBar';
 import { Viewer } from './components/Viewer';
 import { api } from './lib/api';
-import { groupByDay, useHistogram, useMediaFeed } from './lib/feed';
+import { groupByDay, useHistogram, useMediaFeed, useMemories } from './lib/feed';
 import {
   ALBUM_CARD_WIDTHS, buildCells, effectiveTile, moveFocus, spatialMove, ZOOM_MAX,
   type Direction,
 } from './lib/grid';
 import { LANGS } from './lib/i18n';
 import { onPadStatus, startInput, useInput, type Action, type PadStatus } from './lib/input';
-import { FONT_MAX, HUES, VOLUME_MAX, leftRows, rightRows } from './lib/panels';
+import {
+  FONT_MAX, HUES, SCREENSAVER_MINUTES, SLIDE_SECONDS, VOLUME_MAX, leftRows, rightRows,
+} from './lib/panels';
 import { useStore } from './lib/store';
 
 export function App(): React.JSX.Element {
@@ -50,6 +54,7 @@ export function App(): React.JSX.Element {
   );
 
   const isMediaView = view.kind === 'timeline' || view.kind === 'videos' || view.kind === 'album';
+  const isMemories = view.kind === 'memories';
   const isForm = view.kind === 'newAlbum' || view.kind === 'editAlbum';
   const formFields = albumFields(view.kind === 'editAlbum');
 
@@ -69,15 +74,30 @@ export function App(): React.JSX.Element {
   const feed = useMediaFeed(query, isMediaView);
   const buckets = useHistogram(query, isMediaView);
   const sections = useMemo(() => groupByDay(feed.items), [feed.items]);
+  // Les souvenirs se recalculent côté serveur : on les redemande quand la
+  // bibliothèque a grossi, pas à chaque rendu.
+  const memories = useMemories(isMemories, state?.counts.photos ?? 0);
+  const memoryCount = memories.onThisDay.length + memories.chapters.length;
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [cols, setCols] = useState(6);
   const [albumCols, setAlbumCols] = useState(4);
   const [recentOffset, setRecentOffset] = useState(0);
   const [recentSlots, setRecentSlots] = useState(2);
+  const [memoryCols, setMemoryCols] = useState(3);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
   const [viewerPlaying, setViewerPlaying] = useState(false);
   const [viewerInfo, setViewerInfo] = useState(false);
+  /**
+   * Diaporama en cours. `items` figé = un moment ou une année de « ce jour-là » ;
+   * `items` à null = on suit la chronologie affichée, qui continue de se charger.
+   */
+  const [show, setShow] = useState<
+    { title: string | null; items: MediaItem[] | null; startIndex: number } | null
+  >(null);
+  const [showItem, setShowItem] = useState<MediaItem | undefined>(undefined);
+  /** Dernier geste, pour le démarrage automatique après inactivité. */
+  const lastActivity = useRef(Date.now());
   // Le flux d'avancement du scan est branché une fois pour toutes ; il lit l'état
   // du plein écran par référence plutôt que par fermeture, qui serait périmée.
   const viewerOpenRef = useRef(false);
@@ -263,9 +283,11 @@ export function App(): React.JSX.Element {
     ? feed.items.length
     : view.kind === 'albums'
       ? visibleAlbums.length
-      : isForm
-        ? formFields.length
-        : 0;
+      : isMemories
+        ? memoryCount
+        : isForm
+          ? formFields.length
+          : 0;
 
   const focusedItem: MediaItem | undefined = isMediaView ? feed.items[nav.contentIndex] : undefined;
 
@@ -366,6 +388,92 @@ export function App(): React.JSX.Element {
   );
 
   /**
+   * Enregistrer une copie de la sélection. Une seule photo arrive telle quelle,
+   * plusieurs dans un ZIP. C'est le navigateur qui mène le téléchargement : lui
+   * seul sait afficher l'avancement et demander où ranger le fichier.
+   *
+   * Rien n'est déplacé ni effacé : les originaux restent à leur place sur le PC.
+   */
+  const doDownload = useCallback(
+    (item?: MediaItem) => {
+      const ids = targetIds(item);
+      if (ids.length === 0) return;
+      const link = document.createElement('a');
+      link.href = api.downloadUrl(ids);
+      link.rel = 'noopener';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast(t.downloadStarted);
+    },
+    [targetIds, toast, t.downloadStarted],
+  );
+
+  // ------------------------------------------------------ diaporama
+
+  /** Le diaporama de ce qui est à l'écran, à partir de la photo regardée. */
+  const startSlideshow = useCallback(
+    (startIndex: number) => {
+      if (feed.items.length === 0) {
+        toast(t.slideshowEmpty);
+        return;
+      }
+      setViewerIndex(null);
+      setViewerPlaying(false);
+      // Le titre reste celui de l'écran d'où l'on part : il suit l'album ou le
+      // filtre en cours, d'où le `null` plutôt qu'une copie figée.
+      setShow({
+        title: null,
+        items: null,
+        startIndex: Math.max(0, Math.min(feed.items.length - 1, startIndex)),
+      });
+    },
+    [feed.items.length, toast, t.slideshowEmpty],
+  );
+
+  /** Le diaporama d'un moment : ses photos sont demandées d'un bloc au serveur. */
+  const playChapter = useCallback(
+    async (chapter: Chapter) => {
+      const items = await api.mediaByIds(chapter.ids);
+      if (items.length === 0) {
+        toast(t.slideshowEmpty);
+        return;
+      }
+      setShow({ title: chapterName(chapter, settings.lang), items, startIndex: 0 });
+    },
+    [settings.lang, toast, t.slideshowEmpty],
+  );
+
+  /** Le diaporama d'une année de « ce jour-là » : les photos sont déjà là. */
+  const playDay = useCallback(
+    (group: OnThisDay, startIndex: number) => {
+      if (group.items.length === 0) return;
+      setShow({
+        title: `${t.onThisDay} · ${group.year}`,
+        items: group.items,
+        startIndex,
+      });
+    },
+    [t.onThisDay],
+  );
+
+  /**
+   * Fige un moment en album. Un moment n'existe qu'en mémoire et se redécoupera
+   * au prochain ajout de photos ; en faire un album, c'est le garder pour de bon.
+   */
+  const makeAlbumFromChapter = useCallback(
+    async (chapter: Chapter) => {
+      if (!requireAdmin()) return;
+      const name = chapterName(chapter, settings.lang);
+      const { album } = await api.albumFromChapter(name, chapter.ids, settings.hue);
+      await refresh();
+      toast(t.momentSaved(album.name));
+      openView({ kind: 'album', id: album.id });
+    },
+    [requireAdmin, settings.lang, settings.hue, refresh, toast, t, openView],
+  );
+
+  /**
    * Se rendre à un mois : on y *défile*, on ne filtre pas. Tout ce qui est plus
    * récent reste au-dessus, il suffit de remonter — avant, choisir « mai 2020 »
    * masquait tout le reste.
@@ -399,6 +507,9 @@ export function App(): React.JSX.Element {
           break;
         case TOP.VIDEOS:
           openView({ kind: 'videos' });
+          break;
+        case TOP.MEMORIES:
+          openView({ kind: 'memories' });
           break;
         case TOP.NEW_ALBUM:
           if (requireAdmin()) openView({ kind: 'newAlbum' });
@@ -515,11 +626,30 @@ export function App(): React.JSX.Element {
         case 'hidden':
           patchSettings({ showHidden: !settings.showHidden });
           break;
+        case 'slideshow': {
+          // ←/→ ont choisi le champ ; LB/RB en changent la valeur.
+          const cycle = (list: number[], current: number): number => {
+            const i = list.indexOf(current);
+            return list[(((i < 0 ? 0 : i) + delta) % list.length + list.length) % list.length];
+          };
+          if (nav.subIndex === 0) {
+            patchSettings({ slideshowSeconds: cycle(SLIDE_SECONDS, settings.slideshowSeconds) });
+          } else if (nav.subIndex === 1) {
+            patchSettings({ slideshowShuffle: !settings.slideshowShuffle });
+          } else if (nav.subIndex === 2) {
+            patchSettings({ slideshowPan: !settings.slideshowPan });
+          } else {
+            patchSettings({
+              screensaverMinutes: cycle(SCREENSAVER_MINUTES, settings.screensaverMinutes),
+            });
+          }
+          break;
+        }
         default:
           break;
       }
     },
-    [isAdmin, nav.panelIndex, settings, patchSettings],
+    [isAdmin, nav.panelIndex, nav.subIndex, settings, patchSettings],
   );
 
   const confirmLeftRow = useCallback(() => {
@@ -564,6 +694,7 @@ export function App(): React.JSX.Element {
     else if (row.id === 'folders') setSheet({ kind: 'folders' });
     else if (row.id === 'lang') patchSettings({ lang: LANGS[nav.subIndex]?.code ?? settings.lang });
     else if (row.id === 'hidden') patchSettings({ showHidden: !settings.showHidden });
+    // Sur le diaporama, A fait la même chose qu'un clic sur le champ visé.
     else bumpRightRow(1);
   }, [isAdmin, nav.panelIndex, nav.subIndex, setSheet, patchSettings, settings, bumpRightRow]);
 
@@ -571,10 +702,27 @@ export function App(): React.JSX.Element {
 
   const handle = useCallback(
     (action: Action): boolean => {
+      // Tout geste repousse le démarrage automatique du diaporama.
+      lastActivity.current = Date.now();
+
       // Une surcouche est ouverte : elle a son propre gestionnaire, plus bas
-      // dans la pile. On décline pour lui laisser la main.
-      if (sheet || store.osk || store.addToAlbumFor || store.tagEditorFor || store.albumTagsFor) {
+      // dans la pile. On décline pour lui laisser la main. Il faut le dire
+      // explicitement : ce gestionnaire-ci est réinscrit à chaque fois que ses
+      // dépendances changent, donc il repasse en tête de pile même quand la
+      // surcouche s'est montée après lui.
+      if (
+        show || sheet || store.osk || store.addToAlbumFor || store.tagEditorFor ||
+        store.albumTagsFor
+      ) {
         return false;
+      }
+
+      // Start lance le diaporama de ce qu'on regarde, depuis la photo visée.
+      // Le diaporama, lui, gère lui-même Start pour en sortir.
+      if (action === 'start') {
+        if (isMediaView) startSlideshow(viewerIndex ?? nav.contentIndex);
+        else openView({ kind: 'memories' });
+        return true;
       }
 
       if (menu) {
@@ -858,6 +1006,53 @@ export function App(): React.JSX.Element {
         return true;
       }
 
+      if (isMemories) {
+        // L'écran est fait de deux régions : les années de « ce jour-là », une
+        // par ligne, puis la grille des moments. ↑/↓ saute d'une ligne dans
+        // chacune, et passe de l'une à l'autre à la frontière.
+        const dayCount = memories.onThisDay.length;
+        const clamp = (n: number): number => Math.min(memoryCount - 1, Math.max(0, n));
+        const move = (delta: number): void =>
+          setNav((n) => ({ ...n, contentIndex: clamp(n.contentIndex + delta) }));
+        const index = Math.min(nav.contentIndex, memoryCount - 1);
+        const inDays = index < dayCount;
+
+        switch (action) {
+          case 'left': move(-1); break;
+          case 'right': move(1); break;
+          case 'down':
+            move(inDays ? 1 : memoryCols);
+            break;
+          case 'up':
+            // Depuis la première ligne des moments, on remonte dans les années ;
+            // depuis la première année, on rend la main à la barre du haut.
+            if (index === 0) setNav((n) => ({ ...n, zone: 'top', topIndex: TOP.MEMORIES }));
+            else if (!inDays && index - memoryCols < dayCount) {
+              setNav((n) => ({ ...n, contentIndex: clamp(Math.max(0, dayCount - 1)) }));
+            } else move(inDays ? -1 : -memoryCols);
+            break;
+          case 'confirm': {
+            if (inDays) {
+              const group = memories.onThisDay[index];
+              if (group) playDay(group, 0);
+            } else {
+              const chapter = memories.chapters[index - dayCount];
+              if (chapter) void playChapter(chapter);
+            }
+            break;
+          }
+          case 'actionY': {
+            // Y fige le moment visé en album, comme Y ouvre la fiche d'un album.
+            const chapter = inDays ? undefined : memories.chapters[index - dayCount];
+            if (chapter) void makeAlbumFromChapter(chapter);
+            break;
+          }
+          default:
+            break;
+        }
+        return true;
+      }
+
       if (view.kind === 'albums') {
         // La navigation suit la grille filtrée : un album masqué par la
         // recherche ne doit pas rester atteignable à la manette.
@@ -982,7 +1177,7 @@ export function App(): React.JSX.Element {
       return true;
     },
     [
-      sheet, store.osk, store.addToAlbumFor, store.tagEditorFor, store.albumTagsFor,
+      show, sheet, store.osk, store.addToAlbumFor, store.tagEditorFor, store.albumTagsFor,
       menu, albumMenu, setAlbumTagsFor, visibleAlbums, viewerIndex, feed, nav,
       isAdmin, selectMode, setSelectMode, setNav, activateTop, recentAlbums.length,
       recentVisible, gearIndex, bumpLeftRow,
@@ -991,11 +1186,42 @@ export function App(): React.JSX.Element {
       buckets, anchor, scrubAim, pickMonth,
       isForm, draft, setOsk, submitAlbum, zoom, setZoom, headCount, headFocus, pressHead,
       patchSettings, back, refresh,
+      isMemories, memories, memoryCount, memoryCols, playDay, playChapter, makeAlbumFromChapter,
+      startSlideshow,
       formFields, t, toast,
     ],
   );
 
   useInput(handle);
+
+  // Souris et clavier repoussent eux aussi le démarrage automatique : sans ça,
+  // le diaporama se lancerait pendant qu'on trie tranquillement ses photos.
+  useEffect(() => {
+    const touch = (): void => {
+      lastActivity.current = Date.now();
+    };
+    const events = ['pointerdown', 'pointermove', 'keydown', 'wheel'] as const;
+    for (const name of events) window.addEventListener(name, touch, { passive: true });
+    return () => {
+      for (const name of events) window.removeEventListener(name, touch);
+    };
+  }, []);
+
+  /**
+   * Démarrage automatique après un long silence : l'écran devient un cadre
+   * photo. Désactivé par défaut, et jamais pendant qu'une fenêtre est ouverte
+   * ou qu'on remplit un formulaire — on ne coupe la parole à personne.
+   */
+  useEffect(() => {
+    const minutes = settings.screensaverMinutes;
+    if (minutes <= 0 || show !== null) return;
+    const timer = window.setInterval(() => {
+      if (Date.now() - lastActivity.current < minutes * 60_000) return;
+      if (sheet || store.osk || isForm || feed.items.length === 0) return;
+      setShow({ title: null, items: null, startIndex: 0 });
+    }, 15_000);
+    return () => window.clearInterval(timer);
+  }, [settings.screensaverMinutes, show, sheet, store.osk, isForm, feed.items.length]);
 
   // Clic droit : le menu contextuel du croquis, réservé aux gestes admin.
   const onContextMenu = useCallback(
@@ -1073,10 +1299,15 @@ export function App(): React.JSX.Element {
   const stageTitle =
     view.kind === 'albums' ? t.albums
     : view.kind === 'videos' ? t.videos
+    : view.kind === 'memories' ? t.memories
     : view.kind === 'newAlbum' ? t.newAlbum
     : view.kind === 'editAlbum' ? t.editAlbum
     : currentAlbum ? (currentAlbum.kind === 'favorites' ? t.favorites : currentAlbum.name)
     : null;
+
+  // Le diaporama qui suit la chronologie affiche les photos chargées ; celui
+  // d'un moment porte sa propre liste, figée au moment du lancement.
+  const showItems = show?.items ?? feed.items;
 
   const scan = state?.scan;
   const scanning = scan?.running ?? false;
@@ -1209,6 +1440,14 @@ export function App(): React.JSX.Element {
                 </div>
               )}
 
+              {/* Le diaporama part de ce qui est à l'écran : la chronologie, un
+                  album, les vidéos — filtres compris. */}
+              {isMediaView && feed.items.length > 0 && (
+                <button className="tiny-btn" onClick={() => startSlideshow(nav.contentIndex)}>
+                  <IconSlideshow /> {t.slideshow}
+                </button>
+              )}
+
               {/* Remonter d'un geste : le curseur de dates ne filtre plus, donc
                   ce bouton ramène en haut au lieu d'effacer une borne. */}
               {isMediaView && anchor !== null && buckets.length > 1 && anchor !== buckets[0]?.month && (
@@ -1251,6 +1490,16 @@ export function App(): React.JSX.Element {
                   } else if (kind === 'add') doAddToAlbum(item);
                   else void doRemoveOrHide(item);
                 }}
+              />
+            ) : isMemories ? (
+              <MemoriesView
+                data={memories}
+                focusIndex={nav.zone === 'content' ? Math.min(nav.contentIndex, memoryCount - 1) : -1}
+                onFocus={(index) => setNav((n) => ({ ...n, zone: 'content', contentIndex: index }))}
+                onPlayDay={playDay}
+                onPlayChapter={(chapter) => void playChapter(chapter)}
+                onMakeAlbum={(chapter) => void makeAlbumFromChapter(chapter)}
+                onCols={setMemoryCols}
               />
             ) : view.kind === 'albums' && visibleAlbums.length === 0 ? (
               // Une recherche sans résultat renvoyait une page blanche, sans dire
@@ -1311,6 +1560,16 @@ export function App(): React.JSX.Element {
               </button>
               <button className="tiny-btn" onClick={() => doAddToAlbum()} disabled={selection.length === 0}>
                 {t.addToAlbum}
+              </button>
+              {/* Une copie sur l'appareil qui regarde. Les originaux ne bougent
+                  pas : c'est un téléchargement, pas un déplacement. */}
+              <button
+                className="tiny-btn"
+                title={t.downloadHint}
+                onClick={() => doDownload()}
+                disabled={selection.length === 0}
+              >
+                <IconDownload /> {t.download}
               </button>
               <button
                 className="tiny-btn danger"
@@ -1379,16 +1638,36 @@ export function App(): React.JSX.Element {
           slot={currentAlbum.musicSlot}
           // Dès qu'une vidéo est à l'écran, y compris avant qu'on la lance :
           // la musique ne saute pas de volume au moment où le son démarre.
-          duckPct={viewerItem?.kind === 'video' ? currentAlbum.videoMusicPct : null}
+          // Le diaporama lance ses vidéos tout seul, d'où le second cas.
+          duckPct={
+            (show ? showItem : viewerItem)?.kind === 'video' ? currentAlbum.videoMusicPct : null
+          }
         />
       )}
 
-      {viewerItem && (
+      {viewerItem && !show && (
         <Viewer
           item={viewerItem}
           playing={viewerPlaying}
           showInfo={viewerInfo}
           onClose={closeViewer}
+        />
+      )}
+
+      {show && (
+        <Slideshow
+          items={showItems}
+          startIndex={show.startIndex}
+          title={show.title ?? stageTitle ?? t.home}
+          // Un diaporama lancé sur la chronologie doit pouvoir dépasser les
+          // photos déjà chargées : il redemande la suite en approchant du bout.
+          onNeedMore={show.items === null ? feed.loadMore : undefined}
+          onItem={setShowItem}
+          onClose={() => {
+            setShow(null);
+            setShowItem(undefined);
+            lastActivity.current = Date.now();
+          }}
         />
       )}
 
@@ -1439,6 +1718,10 @@ export function App(): React.JSX.Element {
           }}
           onRotate={() => {
             void doRotate(menuItem);
+            setMenu(null);
+          }}
+          onDownload={() => {
+            doDownload(menuItem);
             setMenu(null);
           }}
         />

@@ -379,6 +379,10 @@ input { background: none; border: none; outline: none; }
 }
 
 .tiny-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
   padding: 6px 9px;
   border-radius: 8px;
   background: var(--surface-3);
@@ -386,6 +390,9 @@ input { background: none; border: none; outline: none; }
   font-size: 0.78em;
   transition: border-color 0.14s, color 0.14s;
 }
+
+/* Une icône dans un petit bouton se cale sur le texte plutôt que de l'écraser. */
+.tiny-btn svg { width: 13px; height: 13px; }
 
 .tiny-btn:hover { border-color: var(--accent); color: var(--accent-ink); }
 
@@ -1460,6 +1467,424 @@ input { background: none; border: none; outline: none; }
   :root { --panel-w: 168px; --edge: 16px; }
   .panel { padding: 8px; }
   .pill { font-size: 0.78em; padding: 5px 6px; }
+}
+
+/* ------------------------------------------------- souvenirs et diaporama */
+
+.memories { display: flex; flex-direction: column; gap: 30px; padding-bottom: 40px; }
+
+.memory-section h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 1.02em;
+  font-weight: 600;
+  color: var(--accent-ink);
+}
+
+.memory-section h2 svg { width: 18px; height: 18px; color: var(--accent); }
+
+.memory-hint {
+  margin: 0 0 12px;
+  max-width: 74ch;
+  font-size: 0.82em;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+/* --- ce jour-là : une bande par année --- */
+
+.day-strip {
+  padding: 8px 12px 10px;
+  margin-bottom: 8px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  transition: border-color 0.14s, box-shadow 0.14s;
+}
+
+.day-strip.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-deep), 0 0 22px var(--glow-soft);
+}
+
+.day-strip-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.day-strip-head .year {
+  font-size: 1.1em;
+  font-weight: 700;
+  color: var(--accent);
+  text-shadow: 0 0 14px var(--glow-soft);
+}
+
+.day-strip-head .muted { font-size: 0.8em; color: var(--muted); }
+.day-strip-head .tiny-btn { margin-left: auto; }
+
+/* Une rangée qui défile horizontalement : une année chargée ne pousse pas les
+   suivantes hors de l'écran. */
+.day-strip-rail {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+
+.day-thumb {
+  position: relative;
+  flex: 0 0 auto;
+  width: 92px;
+  height: 92px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  padding: 0;
+  transition: border-color 0.14s, transform 0.14s;
+}
+
+.day-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.day-thumb:hover { border-color: var(--accent); transform: translateY(-2px); }
+
+.day-thumb .badge-video {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--glow);
+}
+
+/* --- moments --- */
+
+.moment-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.moment {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  overflow: hidden;
+  transition: border-color 0.14s, box-shadow 0.14s, transform 0.14s;
+}
+
+.moment.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-deep), 0 0 26px var(--glow-soft);
+  transform: translateY(-2px);
+}
+
+/* La couverture en grand, les autres en bande sous elle : on reconnaît le
+   moment d'un coup d'oeil sans ouvrir quoi que ce soit. */
+.moment-cover {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(var(--strip, 4), 1fr);
+  grid-template-rows: 118px 58px;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: var(--surface-2);
+  cursor: pointer;
+}
+
+.moment-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.moment-cover img.big { grid-column: 1 / -1; }
+
+.moment-play {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  opacity: 0;
+  background: rgba(6, 6, 12, 0.44);
+  transition: opacity 0.16s;
+}
+
+.moment-play svg {
+  width: 42px;
+  height: 42px;
+  color: var(--accent);
+  filter: drop-shadow(0 0 12px var(--glow));
+}
+
+.moment-cover:hover .moment-play,
+.moment.on .moment-play { opacity: 1; }
+
+.moment-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px 6px;
+}
+
+.moment-title {
+  font-weight: 600;
+  color: var(--accent-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.moment-body .muted { font-size: 0.78em; color: var(--muted); }
+
+.moment-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 12px 12px; }
+
+/* --- réglages du diaporama, dans la barre de droite --- */
+
+.slide-settings { display: flex; flex-direction: column; gap: 3px; }
+
+/* Un réglage par ligne : le nom à gauche, la valeur à droite. Sur 208 px, deux
+   côte à côte tronquaient leur libellé. */
+.slide-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: var(--surface-3);
+  font-size: 0.74em;
+  transition: border-color 0.14s, background 0.14s, color 0.14s;
+}
+
+.slide-field .k { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slide-field .v { flex: 0 0 auto; font-weight: 600; color: var(--text); }
+
+/* Réglage actif : la valeur s'allume, le libellé reste lisible. */
+.slide-field.on { background: var(--accent-deep); }
+.slide-field.on .k { color: var(--accent-ink); }
+.slide-field.on .v { color: var(--accent); }
+
+.slide-field.aim { border-color: var(--accent); box-shadow: 0 0 12px var(--glow); }
+.slide-field:hover { border-color: var(--accent-soft); }
+
+/* --- le diaporama lui-même --- */
+
+.slideshow {
+  position: fixed;
+  inset: 0;
+  z-index: 65;
+  background: #000;
+  overflow: hidden;
+  animation: fade 0.3s ease;
+  cursor: default;
+}
+
+.slideshow .slide {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+}
+
+/* Photo tournée : mêmes bornes croisées que dans le plein écran, sinon un
+   quart de tour la ferait déborder de l'écran. */
+.slideshow .slide.rot90 { transform: rotate(90deg); max-width: 100vh; max-height: 100vw; }
+.slideshow .slide.rot180 { transform: rotate(180deg); }
+.slideshow .slide.rot270 { transform: rotate(270deg); max-width: 100vh; max-height: 100vw; }
+
+/* La nouvelle photo apparaît par-dessus l'ancienne, qui reste dessous le temps
+   du fondu : c'est ce qui évite l'éclair noir entre deux images. */
+.slideshow .slide.in { animation: slide-in 0.9s ease both; z-index: 2; }
+.slideshow .slide.out { z-index: 1; }
+
+@keyframes slide-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* Léger mouvement de caméra. La direction vient de la photo elle-même, donc
+   deux images voisines ne dérivent pas du même côté. */
+.slideshow .slide.pan:not(.rot90):not(.rot180):not(.rot270) {
+  animation:
+    slide-in 0.9s ease both,
+    ken-burns var(--kb-dur, 6s) ease-out both;
+}
+
+@keyframes ken-burns {
+  from { transform: scale(var(--kb-from, 1.02)) translate(0, 0); }
+  to { transform: scale(var(--kb-to, 1.1)) translate(var(--kb-x, 0), var(--kb-y, 0)); }
+}
+
+/* Le trait d'avancement : on voit venir le changement de photo. */
+.slide-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  z-index: 4;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.slide-progress i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--glow);
+  animation: slide-fill linear both;
+}
+
+@keyframes slide-fill { from { width: 0; } to { width: 100%; } }
+
+.slide-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(760px, calc(100vw - 32px));
+  padding: 8px 14px;
+  border-radius: 16px;
+  background: rgba(10, 10, 18, 0.86);
+  border: 1px solid var(--accent-deep);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.66);
+  transition: opacity 0.5s, transform 0.5s;
+}
+
+/* Les commandes s'effacent quand plus rien ne bouge — mais restent
+   cliquables : on ne veut pas que la souris passe à travers un bouton. */
+.slide-bar.faded { opacity: 0; transform: translate(-50%, 14px); }
+.slide-bar:hover { opacity: 1; transform: translateX(-50%); }
+
+.slide-bar button {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+  color: var(--text);
+  transition: border-color 0.14s, color 0.14s;
+}
+
+.slide-bar button:hover { border-color: var(--accent); color: var(--accent-ink); }
+.slide-bar button svg { width: 16px; height: 16px; }
+
+.slide-bar button.big {
+  width: 44px;
+  height: 44px;
+  background: var(--accent-deep);
+  border-color: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.slide-bar button.big svg { width: 20px; height: 20px; }
+
+.slide-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  padding: 0 6px;
+}
+
+.slide-meta .n {
+  font-size: 0.84em;
+  font-weight: 600;
+  color: var(--accent-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slide-meta .muted {
+  font-size: 0.72em;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slide-speed {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  font-size: 0.76em;
+  color: var(--muted);
+}
+
+.slide-speed button { width: 26px; height: 26px; font-size: 1.1em; }
+.slide-speed span { min-width: 34px; text-align: center; }
+
+.slide-paused {
+  position: absolute;
+  top: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: 12px;
+  background: rgba(8, 8, 14, 0.74);
+  border: 1px solid var(--accent-deep);
+  color: var(--accent-ink);
+  font-size: 0.82em;
+  backdrop-filter: blur(10px);
+}
+
+.slide-paused svg { width: 15px; height: 15px; }
+
+.slide-hint {
+  position: absolute;
+  top: 22px;
+  right: 22px;
+  z-index: 5;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: rgba(8, 8, 14, 0.66);
+  color: var(--muted);
+  font-size: 0.74em;
+  backdrop-filter: blur(8px);
+}
+
+.slideshow-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+}
+
+/* Un écran étroit ne peut pas tout montrer : le titre et la vitesse cèdent
+   la place aux boutons de lecture. */
+@media (max-width: 700px) {
+  .slide-meta, .slide-speed { display: none; }
+  .moment-grid { grid-template-columns: 1fr; }
+}
+
+/* Personne n'a demandé que ça bouge : on respecte le réglage du système. */
+@media (prefers-reduced-motion: reduce) {
+  .slideshow .slide.pan:not(.rot90):not(.rot180):not(.rot270) {
+    animation: slide-in 0.9s ease both;
+  }
 }
 
 @media (max-width: 900px) {

@@ -11,6 +11,7 @@ export type View =
   | { kind: 'videos' }
   | { kind: 'albums' }
   | { kind: 'album'; id: number }
+  | { kind: 'memories' }
   | { kind: 'newAlbum' }
   | { kind: 'editAlbum'; id: number };
 
@@ -136,6 +137,7 @@ const DEFAULT_SETTINGS: Settings = {
   fontScale: 2, hue: 285, volume: 3, lang: 'fr', showHidden: false,
   zoom: { timeline: 2, videos: 2, album: 2, albums: 2 },
   layout: 'day', albumSort: 'recent', uploadRequiresAdmin: false,
+  slideshowSeconds: 5, slideshowShuffle: false, slideshowPan: true, screensaverMinutes: 0,
 };
 
 const EMPTY_FILTERS: Filters = { from: null, to: null, place: null, tags: [], text: '' };
