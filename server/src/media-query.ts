@@ -17,6 +17,8 @@ export interface Filters {
   mood?: Mood;
   /** Ne garder que ce qui ressemble à cette photo-ci. */
   similar?: number;
+  /** Ne garder que ces photos-là, exactement. */
+  ids?: number[];
 }
 
 interface MediaRow {
@@ -99,6 +101,14 @@ function buildWhere(f: Filters): { sql: string; params: unknown[]; joins: string
     // Une photo non signée n'a pas d'ambiance connue : mieux vaut l'écarter que
     // la faire passer pour terne.
     if (rule) where.push(`(m.sig_state = 'ready' AND ${rule})`);
+  }
+
+  if (f.ids) {
+    // Liste explicite : on la borne pour qu'une URL bricolée ne fabrique pas
+    // une requête démesurée.
+    const ids = f.ids.filter((n) => Number.isInteger(n)).slice(0, 500);
+    if (ids.length === 0) where.push('0');
+    else where.push(`m.id IN (${ids.join(',')})`);
   }
 
   if (f.similar !== undefined) {

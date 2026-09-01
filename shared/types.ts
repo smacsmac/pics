@@ -170,6 +170,8 @@ export interface MediaQuery {
   mood?: Mood;
   /** Ne garder que les photos qui ressemblent à celle-ci. */
   similar?: number;
+  /** Ne garder que ces photos-là, exactement. Sert au tri des quasi-doublons. */
+  ids?: number[];
   from?: number; // epoch ms inclusif
   to?: number; // epoch ms inclusif
   tags?: string[];

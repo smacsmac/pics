@@ -40,6 +40,7 @@ function queryString(q: MediaQuery): string {
   if (q.kind) params.set('kind', q.kind);
   if (q.mood) params.set('mood', q.mood);
   if (q.similar !== undefined) params.set('similar', String(q.similar));
+  if (q.ids && q.ids.length) params.set('ids', q.ids.join(','));
   if (q.showHidden) params.set('showHidden', '1');
   if (q.cursor) params.set('cursor', q.cursor);
   if (q.limit) params.set('limit', String(q.limit));

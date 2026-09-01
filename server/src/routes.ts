@@ -68,6 +68,7 @@ function filtersFrom(query: Record<string, unknown>, admin: boolean): Filters {
     kind: query.kind === 'photo' || query.kind === 'video' ? query.kind : undefined,
     mood: MOODS.includes(query.mood as Mood) ? (query.mood as Mood) : undefined,
     similar: parseNum(query.similar),
+    ids: parseList(query.ids)?.map(Number).filter((n) => Number.isFinite(n)),
     // Les photos masquées ne réapparaissent que si un admin l'a demandé.
     includeHidden: admin && showHidden,
   };

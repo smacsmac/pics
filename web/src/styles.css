@@ -1675,6 +1675,69 @@ input { background: none; border: none; outline: none; }
 
 .moment-actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 6px 12px 12px; }
 
+/* --- quasi-doublons --- */
+
+.dup-list { display: flex; flex-direction: column; gap: 10px; }
+
+.dup-group {
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.dup-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.dup-group.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-deep), 0 0 22px var(--glow-soft);
+}
+
+.dup-head .n { font-weight: 600; color: var(--accent-ink); font-size: 0.9em; }
+.dup-head .muted { font-size: 0.78em; color: var(--muted); }
+.dup-head .tiny-btn { margin-left: auto; }
+
+.dup-rail {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+
+.dup-thumb {
+  position: relative;
+  flex: 0 0 auto;
+  width: 104px;
+  height: 104px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  /* Les autres sont estompées : on voit d'un coup laquelle est retenue. */
+  opacity: 0.55;
+  transition: opacity 0.14s, border-color 0.14s;
+}
+
+.dup-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* La plus définie du lot : celle que Photon garderait. */
+.dup-thumb.best { opacity: 1; border-color: var(--accent); box-shadow: 0 0 14px var(--glow-soft); }
+
+.badge-best {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  font-size: 0.9em;
+  color: var(--accent);
+  text-shadow: 0 0 8px var(--glow);
+}
+
 /* --- réglages du diaporama, dans la barre de droite --- */
 
 .slide-settings { display: flex; flex-direction: column; gap: 3px; }

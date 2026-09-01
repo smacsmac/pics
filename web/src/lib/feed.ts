@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Chapter, MediaItem, MediaQuery, OnThisDay } from '../../../shared/types';
+import type {
+  Chapter, DuplicateGroup, MediaItem, MediaQuery, OnThisDay,
+} from '../../../shared/types';
 import { api } from './api';
 
 const PAGE_SIZE = 200;
@@ -126,6 +128,8 @@ export function groupByDay(items: MediaItem[]): DaySection[] {
 export interface Memories {
   onThisDay: OnThisDay[];
   chapters: Chapter[];
+  /** Séries de photos presque identiques. Vide hors admin : c'est un outil de ménage. */
+  duplicates: DuplicateGroup[];
   loading: boolean;
   reload: () => void;
 }
@@ -135,9 +139,10 @@ export interface Memories {
  * chaque demande : on ne les charge donc que lorsque l'écran est ouvert, et on
  * les redemande après un ajout de photos.
  */
-export function useMemories(active: boolean, nonce = 0): Memories {
+export function useMemories(active: boolean, nonce = 0, admin = false): Memories {
   const [onThisDay, setOnThisDay] = useState<OnThisDay[]>([]);
   const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [duplicates, setDuplicates] = useState<DuplicateGroup[]>([]);
   const [loading, setLoading] = useState(false);
   const [ownNonce, setOwnNonce] = useState(0);
 
@@ -145,16 +150,23 @@ export function useMemories(active: boolean, nonce = 0): Memories {
     if (!active) return;
     let cancelled = false;
     setLoading(true);
-    Promise.all([api.onThisDay(), api.chapters()])
-      .then(([days, moments]) => {
+    Promise.all([
+      api.onThisDay(),
+      api.chapters(),
+      // Le ménage est réservé à l'admin ; hors de là on ne demande même pas.
+      admin ? api.duplicates().catch(() => []) : Promise.resolve([]),
+    ])
+      .then(([days, moments, doubles]) => {
         if (cancelled) return;
         setOnThisDay(days);
         setChapters(moments);
+        setDuplicates(doubles);
       })
       .catch(() => {
         if (!cancelled) {
           setOnThisDay([]);
           setChapters([]);
+          setDuplicates([]);
         }
       })
       .finally(() => {
@@ -163,10 +175,10 @@ export function useMemories(active: boolean, nonce = 0): Memories {
     return () => {
       cancelled = true;
     };
-  }, [active, nonce, ownNonce]);
+  }, [active, nonce, ownNonce, admin]);
 
   const reload = useCallback(() => setOwnNonce((n) => n + 1), []);
-  return { onThisDay, chapters, loading, reload };
+  return { onThisDay, chapters, duplicates, loading, reload };
 }
 
 export function useHistogram(query: MediaQuery, active = true): Array<{ month: number; count: number }> {

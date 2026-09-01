@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Album, Chapter, MediaItem, Mood, OnThisDay, ZoomKey } from '../../shared/types';
+import type {
+  Album, Chapter, DuplicateGroup, MediaItem, Mood, OnThisDay, ZoomKey,
+} from '../../shared/types';
 import { MOODS } from '../../shared/types';
 import {
   AlbumForm, AlbumMusic, AlbumsGrid, albumFields, clampPercent, type AlbumDraft,
@@ -77,8 +79,11 @@ export function App(): React.JSX.Element {
   const sections = useMemo(() => groupByDay(feed.items), [feed.items]);
   // Les souvenirs se recalculent côté serveur : on les redemande quand la
   // bibliothèque a grossi, pas à chaque rendu.
-  const memories = useMemories(isMemories, state?.counts.photos ?? 0);
-  const memoryCount = memories.onThisDay.length + memories.chapters.length;
+  const memories = useMemories(isMemories, state?.counts.photos ?? 0, isAdmin);
+  // L'écran Souvenirs se parcourt d'un bloc à la manette : les années, puis les
+  // moments, puis les séries à trier.
+  const memoryCount =
+    memories.onThisDay.length + memories.chapters.length + memories.duplicates.length;
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [cols, setCols] = useState(6);
@@ -459,6 +464,29 @@ export function App(): React.JSX.Element {
   );
 
   /**
+   * Prépare le tri d'une série de quasi-doublons : on revient à la chronologie
+   * avec la série seule à l'écran, tout coché sauf la plus nette. Il ne reste
+   * qu'à décocher ce qu'on veut garder et à appuyer sur « Cacher ».
+   *
+   * Rien n'est caché ni supprimé ici : c'est une sélection, pas une action.
+   */
+  const sortDuplicates = useCallback(
+    (group: DuplicateGroup) => {
+      if (!requireAdmin()) return;
+      openView({ kind: 'timeline' });
+      // Exactement la série, et rien d'autre : « ressemble à » en montrerait
+      // davantage, et on se demanderait d'où sortent les photos en trop.
+      setFilters(() => ({
+        from: null, to: null, place: null, tags: [], text: '', mood: null,
+        similar: null, ids: group.ids,
+      }));
+      setSelectMode(true);
+      setSelection(group.ids.filter((id) => id !== group.bestId));
+    },
+    [requireAdmin, openView, setFilters, setSelectMode, setSelection],
+  );
+
+  /**
    * Fige un moment en album. Un moment n'existe qu'en mémoire et se redécoupera
    * au prochain ajout de photos ; en faire un album, c'est le garder pour de bon.
    */
@@ -487,7 +515,8 @@ export function App(): React.JSX.Element {
       // On repart d'une recherche vierge : garder une borne de dates ou un tag
       // par-dessus donnerait deux photos et l'air d'un bug.
       setFilters(() => ({
-        from: null, to: null, place: null, tags: [], text: '', mood: null, similar: item.id,
+        from: null, to: null, place: null, tags: [], text: '', mood: null,
+        similar: item.id, ids: null,
       }));
     },
     [openView, setFilters],
@@ -1042,23 +1071,27 @@ export function App(): React.JSX.Element {
         // par ligne, puis la grille des moments. ↑/↓ saute d'une ligne dans
         // chacune, et passe de l'une à l'autre à la frontière.
         const dayCount = memories.onThisDay.length;
+        const momentEnd = dayCount + memories.chapters.length;
         const clamp = (n: number): number => Math.min(memoryCount - 1, Math.max(0, n));
         const move = (delta: number): void =>
           setNav((n) => ({ ...n, contentIndex: clamp(n.contentIndex + delta) }));
         const index = Math.min(nav.contentIndex, memoryCount - 1);
         const inDays = index < dayCount;
+        // Les séries de doublons sont empilées, une par ligne comme les années.
+        const inDuplicates = index >= momentEnd;
 
         switch (action) {
           case 'left': move(-1); break;
           case 'right': move(1); break;
           case 'down':
-            move(inDays ? 1 : memoryCols);
+            move(inDays || inDuplicates ? 1 : memoryCols);
             break;
           case 'up':
             // Depuis la première ligne des moments, on remonte dans les années ;
             // depuis la première année, on rend la main à la barre du haut.
             if (index === 0) setNav((n) => ({ ...n, zone: 'top', topIndex: TOP.MEMORIES }));
-            else if (!inDays && index - memoryCols < dayCount) {
+            else if (inDuplicates) move(-1);
+            else if (index - memoryCols < dayCount) {
               setNav((n) => ({ ...n, contentIndex: clamp(Math.max(0, dayCount - 1)) }));
             } else move(inDays ? -1 : -memoryCols);
             break;
@@ -1066,6 +1099,10 @@ export function App(): React.JSX.Element {
             if (inDays) {
               const group = memories.onThisDay[index];
               if (group) playDay(group, 0);
+            } else if (inDuplicates) {
+              // Sur une série, A prépare le tri : rien ne se cache tout seul.
+              const dup = memories.duplicates[index - momentEnd];
+              if (dup) sortDuplicates(dup);
             } else {
               const chapter = memories.chapters[index - dayCount];
               if (chapter) void playChapter(chapter);
@@ -1074,7 +1111,7 @@ export function App(): React.JSX.Element {
           }
           case 'actionY': {
             // Y fige le moment visé en album, comme Y ouvre la fiche d'un album.
-            const chapter = inDays ? undefined : memories.chapters[index - dayCount];
+            const chapter = inDays || inDuplicates ? undefined : memories.chapters[index - dayCount];
             if (chapter) void makeAlbumFromChapter(chapter);
             break;
           }
@@ -1218,6 +1255,7 @@ export function App(): React.JSX.Element {
       isForm, draft, setOsk, submitAlbum, zoom, setZoom, headCount, headFocus, pressHead,
       patchSettings, back, refresh,
       isMemories, memories, memoryCount, memoryCols, playDay, playChapter, makeAlbumFromChapter,
+      sortDuplicates,
       startSlideshow,
       formFields, t, toast,
     ],
@@ -1425,6 +1463,17 @@ export function App(): React.JSX.Element {
                   <IconX />
                 </button>
               )}
+              {isMediaView && filters.ids !== null && (
+                <button
+                  className="filter-chip"
+                  onClick={() => setFilters((f) => ({ ...f, ids: null }))}
+                  title={t.clearFilters}
+                >
+                  <IconSparkle />
+                  {t.duplicateGroup(filters.ids.length)}
+                  <IconX />
+                </button>
+              )}
               {isMediaView && filters.mood !== null && (
                 <button
                   className="filter-chip"
@@ -1563,6 +1612,7 @@ export function App(): React.JSX.Element {
                 onPlayChapter={(chapter) => void playChapter(chapter)}
                 onMakeAlbum={(chapter) => void makeAlbumFromChapter(chapter)}
                 onCols={setMemoryCols}
+                onSortDuplicates={sortDuplicates}
               />
             ) : view.kind === 'albums' && visibleAlbums.length === 0 ? (
               // Une recherche sans résultat renvoyait une page blanche, sans dire

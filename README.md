@@ -61,6 +61,8 @@ avec la même interface, tactile en prime.
 | Quitter le diaporama | **B** ou **Start** | Échap | bouton ✕ |
 | Faire un album d'un moment (écran Souvenirs) | **Y** | — | bouton *En faire un album* |
 | Enregistrer une copie | — | — | clic droit → Enregistrer |
+| Photos qui ressemblent à celle-ci | — | — | clic droit → Photos semblables |
+| Trier une série de quasi-doublons | **A** (écran Souvenirs) | Entrée | *Sélectionner toutes sauf la plus nette* |
 | Menu contextuel | — | — | clic droit |
 
 Les deux barres verticales n'apparaissent que lorsque leur bouton est
@@ -129,7 +131,8 @@ navigateur la voit via XInput. Deux détails à connaître —
   photo par **Y** → *Favoris*.
 * **Vidéos** — la même chronologie, vidéos seulement.
 * **Souvenirs** — ce que Photon retrouve tout seul : les photos prises un même
-  jour les années passées, et les « moments ».
+  jour les années passées, les « moments », et les séries de photos presque
+  identiques à trier.
 * **Nouvel album** — nom, couleur, musique, tags.
 * **Les deux tuiles suivantes** — les albums les plus récents. LB/RB pour
   faire défiler les suivants.
@@ -423,6 +426,71 @@ récupère les photos du PC sans câble.
 
 En mode enfant, les photos cachées sont exclues du téléchargement.
 
+## Recherche visuelle
+
+Photon regarde les couleurs et la lumière de chaque photo, et s'en sert pour
+trois choses. Il **ne reconnaît pas** ce qu'il y a sur l'image : ni chien, ni
+plage, ni visage. C'est un classement par apparence, pas par contenu — et c'est
+dit tel quel dans l'application.
+
+Chaque photo reçoit une « signature » de deux cents octets, calculée une fois
+lors du scan à partir de sa vignette : une grille de 8×8 couleurs, une empreinte
+de 128 bits, et quatre mesures — clarté, saturation, richesse des couleurs,
+teinte dominante. Une bibliothèque entière se signe en quelques dizaines de
+secondes, et une bibliothèque déjà indexée n'a pas à refaire ses vignettes.
+
+### Chercher par ambiance
+
+Dans la barre **Chercher**, la rangée *ambiance* propose huit familles :
+
+| | |
+|---|---|
+| **sombre** | photos de nuit, intérieurs peu éclairés |
+| **clair** | plein soleil, neige, fond blanc |
+| **noir et blanc** | vraiment monochromes — la neige et le brouillard n'en font pas partie |
+| **couleurs vives** | ce qui claque : costumes, fleurs, néons |
+| **verdure** | forêts, pelouses, feuillages |
+| **ciel et mer** | bleus francs |
+| **tons chauds** | rouges, oranges, jaunes |
+| **coucher de soleil** | tons chauds, saturés, ni trop clairs ni trop sombres |
+
+Ce sont des règles sur les pixels. « Coucher de soleil » attrape aussi un mur
+ocre en fin de journée : c'est assumé, et bien plus utile qu'un champ vide.
+
+### Photos semblables
+
+*Clic droit sur une photo → **Photos semblables***. La chronologie ne garde que
+ce qui lui ressemble : même scène, mêmes couleurs, même composition.
+
+C'est un filtre, pas une vue à part. L'ordre reste chronologique, le curseur de
+dates fonctionne, la sélection multiple aussi — et on voit la même scène
+revenir au fil des années, ce qu'un simple classement par ressemblance aurait
+perdu. Une étiquette dans l'en-tête rappelle d'où viennent les résultats et
+suffit à en sortir.
+
+### Presque pareilles
+
+En bas de l'écran **Souvenirs**, Photon regroupe les séries de photos quasi
+identiques : les rafales d'un même instant, et les fichiers importés deux fois
+sous deux noms.
+
+Dans chaque série, la plus définie porte une étoile — c'est celle que Photon
+garderait. Le bouton *Sélectionner toutes sauf la plus nette* ramène à la
+chronologie avec la série seule à l'écran, tout coché sauf elle. Il ne reste
+qu'à décocher ce qu'on veut garder et à appuyer sur *Cacher*.
+
+**Rien n'est supprimé, jamais.** Photon montre les séries, propose une
+sélection, et s'arrête là. Cacher ne touche pas au fichier : il reste sur le
+disque, exactement où il est.
+
+Deux photos sont regroupées si leur empreinte *et* leurs couleurs concordent,
+**et** si elles ont été prises au même instant, à deux minutes près. Sans cette
+dernière condition, deux photos qui se ressemblent à trois ans d'écart
+formaient une « rafale ». L'exception est le même fichier importé deux fois :
+sa signature est rigoureusement identique, et sa date n'a alors plus son mot à
+dire. Les vidéos sont écartées — leur vignette n'est qu'une image parmi des
+milliers.
+
 ## Lieux
 
 Si vos photos contiennent des coordonnées GPS, Photon les traduit en nom de
@@ -547,6 +615,15 @@ Ajoutez ce dossier dans les réglages pour voir l'application remplie.
 | `PHOTON_DATA_DIR` | emplacement de la base et des vignettes |
 | `PHOTON_OPEN=0` | ne pas ouvrir le navigateur au démarrage |
 
+### Vérifier la recherche visuelle
+
+    npm run test:vision
+
+Fabrique des images dont on connaît la couleur et la composition, les signe, et
+vérifie que les mesures, les ambiances, les empreintes et les ressemblances
+tombent juste. Confronte aussi les règles SQL des ambiances à leur équivalent
+JavaScript sur 32 000 tirages. Aucun fichier n'est écrit.
+
 ### Développement
 
 ```
@@ -608,6 +685,16 @@ npm start
 * L'archive ZIP est en mode « stocké » : les photos et les vidéos étant déjà
   compressées, la recompresser ne gagnerait rien et empêcherait de commencer
   l'envoi avant d'avoir tout lu.
+* La **recherche visuelle ne reconnaît pas ce qu'il y a sur la photo.** Elle
+  classe par couleurs et par lumière. Chercher « chien » ou « plage » ne
+  fonctionne pas ; chercher « verdure » ou « coucher de soleil », oui.
+* Les seuils des ambiances sont réglés sur des mesures, pas au jugé, mais ils
+  restent des seuils : une photo à la frontière peut surprendre. Le tri des
+  couleurs vives suit l'échelle de Hasler et Süsstrunk.
+* Les **quasi-doublons** exigent le même instant : deux prises de la même scène
+  à quelques heures d'écart ne sont pas regroupées. C'est délibéré — sans cette
+  règle, la liste se remplissait de photos qui se ressemblent sans être des
+  doublons.
 * La conversion d'une vidéo HEVC prend du temps la première fois : comptez à peu
   près la durée de la vidéo elle-même pour du 1080p, davantage en 4K. C'est fait
   une seule fois par vidéo, ensuite la lecture est immédiate. Ces copies

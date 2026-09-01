@@ -43,6 +43,11 @@ export interface Filters {
    * geste, d'où sa place à part dans l'en-tête plutôt que dans la barre.
    */
   similar: number | null;
+  /**
+   * Liste explicite de photos. Posée par le tri des quasi-doublons, qui veut
+   * montrer une série précise et rien d'autre.
+   */
+  ids: number[] | null;
 }
 
 export interface Nav {
@@ -150,7 +155,7 @@ const DEFAULT_SETTINGS: Settings = {
 };
 
 const EMPTY_FILTERS: Filters = {
-  from: null, to: null, place: null, tags: [], text: '', mood: null, similar: null,
+  from: null, to: null, place: null, tags: [], text: '', mood: null, similar: null, ids: null,
 };
 
 function monthStart(v: MonthValue): number {
@@ -261,7 +266,7 @@ export function StoreProvider({ children }: { children: ReactNode }): React.JSX.
   const filtersActive =
     filters.from !== null || filters.to !== null || filters.place !== null ||
     filters.tags.length > 0 || filters.text.trim() !== '' ||
-    filters.mood !== null || filters.similar !== null;
+    filters.mood !== null || filters.similar !== null || filters.ids !== null;
 
   const query = useMemo<MediaQuery>(() => {
     const q: MediaQuery = {};
@@ -271,6 +276,7 @@ export function StoreProvider({ children }: { children: ReactNode }): React.JSX.
     if (filters.tags.length) q.tags = filters.tags;
     if (filters.mood) q.mood = filters.mood;
     if (filters.similar !== null) q.similar = filters.similar;
+    if (filters.ids !== null) q.ids = filters.ids;
     if (settings.showHidden) q.showHidden = true;
     if (view.kind === 'videos') q.kind = 'video';
     if (view.kind === 'album') q.album = view.id;

@@ -239,3 +239,11 @@ export const IconDownload = (p: P) => (
     <path d="M4.6 17.4v1.2a1.4 1.4 0 0 0 1.4 1.4h12a1.4 1.4 0 0 0 1.4-1.4v-1.2" {...S} />
   </Svg>
 );
+
+/** Quasi-doublons : deux images superposées, l'une décalée derrière l'autre. */
+export const IconCopies = (p: P) => (
+  <Svg {...p}>
+    <rect x="3.4" y="3.4" width="12" height="12" rx="2" {...S} />
+    <path d="M8.6 20.6h9a2 2 0 0 0 2-2v-9" {...S} />
+  </Svg>
+);
