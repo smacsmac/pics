@@ -14,7 +14,7 @@ export const LEFT_ROWS: PanelRow[] = [
   { id: 'to', sub: 2 },
   { id: 'place', sub: 1 },
   { id: 'tags', sub: 1 },
-  { id: 'tbd', sub: 1 },
+  { id: 'mood', sub: 1 },
   { id: 'clear', sub: 1 },
 ];
 

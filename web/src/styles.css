@@ -1469,6 +1469,38 @@ input { background: none; border: none; outline: none; }
   .pill { font-size: 0.78em; padding: 5px 6px; }
 }
 
+/* Étiquette d'un filtre qui ne vit pas dans la barre de recherche : « photos
+   semblables » et l'ambiance. Un clic la retire. */
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 30ch;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--accent-deep);
+  border: 1px solid var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 0.76em;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: border-color 0.14s, background 0.14s;
+}
+
+.filter-chip:hover { border-color: var(--accent); background: var(--accent-soft); color: #08080c; }
+.filter-chip svg { width: 12px; height: 12px; flex: 0 0 auto; }
+
+/* Mention sous un carrousel : dit ce que le réglage fait vraiment. */
+.sheet-hint {
+  margin: 12px 0 0;
+  font-size: 0.78em;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+/* Ambiance déjà appliquée : elle se distingue de celle qu'on survole. */
+.chip.applied { border-color: var(--accent); box-shadow: 0 0 12px var(--glow-soft); }
+
 /* ------------------------------------------------- souvenirs et diaporama */
 
 .memories { display: flex; flex-direction: column; gap: 30px; padding-bottom: 40px; }

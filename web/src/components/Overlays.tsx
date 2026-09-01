@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { AlbumSort, Root } from '../../../shared/types';
+import type { AlbumSort, Mood, Root } from '../../../shared/types';
+import { MOODS } from '../../../shared/types';
 import { api, ApiError } from '../lib/api';
 import { LANGS, monthNames } from '../lib/i18n';
+import { moodLabel } from './Panels';
 import { useInput } from '../lib/input';
 import { HUES } from '../lib/panels';
 import { useStore } from '../lib/store';
 import {
   IconCheck, IconDownload, IconExpand, IconHeart, IconHide, IconPalette, IconPencil, IconPin,
-  IconPlus, IconRotate, IconSelect, IconTag, IconTrash, IconX,
+  IconPlus, IconRotate, IconSelect, IconSparkle, IconTag, IconTrash, IconX,
 } from './Icons';
 
 /** Enferme le curseur d'une liste dans ses bornes, avec bouclage. */
@@ -163,6 +165,82 @@ export function PlacePickerSheet(): React.JSX.Element | null {
             </button>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Le choix d'une ambiance. Un carrousel comme les autres, avec une mention qui
+ * dit franchement ce que c'est : un classement par couleurs et lumière, pas de
+ * la reconnaissance de ce qu'il y a sur la photo.
+ */
+export function MoodPickerSheet(): React.JSX.Element | null {
+  const { sheet, setSheet, filters, setFilters, t } = useStore();
+  const [cursor, setCursor] = useState(0);
+  const open = sheet?.kind === 'moodPicker';
+
+  const options = useMemo<Array<{ value: Mood | null; label: string }>>(
+    () => [
+      { value: null, label: t.anyMood },
+      ...MOODS.map((m) => ({ value: m, label: moodLabel(m, t) })),
+    ],
+    [t],
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    const found = options.findIndex((o) => o.value === filters.mood);
+    setCursor(found >= 0 ? found : 0);
+  }, [open, options, filters.mood]);
+
+  const commit = useCallback(
+    (index: number) => {
+      const option = options[index];
+      if (!option) return;
+      setFilters((f) => ({ ...f, mood: option.value }));
+      setSheet(null);
+    },
+    [options, setFilters, setSheet],
+  );
+
+  useInput(
+    useCallback(
+      (action) => {
+        if (!open) return false;
+        if (action === 'up' || action === 'dec') setCursor((c) => wrap(c - 1, options.length));
+        else if (action === 'down' || action === 'inc') setCursor((c) => wrap(c + 1, options.length));
+        else if (action === 'left') setCursor((c) => wrap(c - 1, options.length));
+        else if (action === 'right') setCursor((c) => wrap(c + 1, options.length));
+        else if (action === 'confirm') commit(cursor);
+        else if (action === 'back') setSheet(null);
+        return true;
+      },
+      [open, options.length, cursor, commit, setSheet],
+    ),
+    open,
+  );
+
+  if (!open) return null;
+
+  return (
+    <div className="overlay" onClick={() => setSheet(null)}>
+      <div className="sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-title">{t.mood}</div>
+        <div className="chip-row">
+          {options.map((option, i) => (
+            <button
+              key={option.value ?? 'any'}
+              className={`chip${i === cursor ? ' on' : ''}${
+                filters.mood === option.value && option.value !== null ? ' applied' : ''
+              }`}
+              onClick={() => commit(i)}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+        <p className="sheet-hint">{t.moodHint}</p>
       </div>
     </div>
   );
@@ -963,6 +1041,7 @@ export function ContextMenu({
   onSetCover,
   onRotate,
   onDownload,
+  onSimilar,
 }: {
   target: MenuTarget;
   onClose: () => void;
@@ -976,6 +1055,7 @@ export function ContextMenu({
   onSetCover: () => void;
   onRotate: () => void;
   onDownload: () => void;
+  onSimilar: () => void;
 }): React.JSX.Element {
   const { t } = useStore();
 
@@ -1008,6 +1088,14 @@ export function ContextMenu({
       <button className="menu-item" onClick={onSelectMode}>
         <IconSelect /> {t.selectMode}
       </button>
+      {/* Les photos qui lui ressemblent : même scène, mêmes couleurs. Sur une
+          vidéo la vignette n'est qu'une image parmi des milliers — on ne le
+          propose donc pas. */}
+      {target.kind === 'photo' && (
+        <button className="menu-item" onClick={onSimilar}>
+          <IconSparkle /> {t.similar}
+        </button>
+      )}
       {/* Enregistrer une copie sur l'appareil qui regarde. Le fichier d'origine
           reste où il est, sur le PC. */}
       <button className="menu-item" title={t.downloadHint} onClick={onDownload}>

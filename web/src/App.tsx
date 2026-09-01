@@ -1,20 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Album, Chapter, MediaItem, OnThisDay, ZoomKey } from '../../shared/types';
+import type { Album, Chapter, MediaItem, Mood, OnThisDay, ZoomKey } from '../../shared/types';
+import { MOODS } from '../../shared/types';
 import {
   AlbumForm, AlbumMusic, AlbumsGrid, albumFields, clampPercent, type AlbumDraft,
 } from './components/Albums';
 import {
   IconChild, IconCompact, IconDownload, IconGamepad, IconPencil, IconRows, IconSelect,
-  IconSlideshow, IconSort, IconX, IconZoomIn, IconZoomOut,
+  IconSlideshow, IconSort, IconSparkle, IconX, IconZoomIn, IconZoomOut,
 } from './components/Icons';
 import { MemoriesView, chapterName } from './components/Memories';
 import { Slideshow } from './components/Slideshow';
 import {
   AddToAlbumSheet, AdminSheet, AlbumContextMenu, AlbumTagsSheet, ContextMenu, FoldersSheet,
-  AlbumSortSheet, MonthPickerSheet, Osk, PlacePickerSheet, TagEditorSheet, TagPickerSheet, Toasts,
-  type AlbumMenuTarget, type MenuTarget,
+  AlbumSortSheet, MonthPickerSheet, MoodPickerSheet, Osk, PlacePickerSheet, TagEditorSheet,
+  TagPickerSheet, Toasts, type AlbumMenuTarget, type MenuTarget,
 } from './components/Overlays';
-import { SearchPanel, SettingsPanel, displayMonth } from './components/Panels';
+import { SearchPanel, SettingsPanel, displayMonth, moodLabel } from './components/Panels';
 import { UploadSheet } from './components/Upload';
 import { DateScrubber, Timeline } from './components/Timeline';
 import { TOP, TopBar, settingsIndex, topCount } from './components/TopBar';
@@ -474,6 +475,25 @@ export function App(): React.JSX.Element {
   );
 
   /**
+   * Ne garder que ce qui ressemble à cette photo. C'est un filtre comme les
+   * autres : la chronologie reste chronologique, le curseur de dates continue
+   * de marcher, et la sélection multiple aussi. On voit la même scène au fil
+   * des années, ce qu'un simple classement par ressemblance perdrait.
+   */
+  const doSimilar = useCallback(
+    (item?: MediaItem) => {
+      if (!item) return;
+      openView({ kind: 'timeline' });
+      // On repart d'une recherche vierge : garder une borne de dates ou un tag
+      // par-dessus donnerait deux photos et l'air d'un bug.
+      setFilters(() => ({
+        from: null, to: null, place: null, tags: [], text: '', mood: null, similar: item.id,
+      }));
+    },
+    [openView, setFilters],
+  );
+
+  /**
    * Se rendre à un mois : on y *défile*, on ne filtre pas. Tout ce qui est plus
    * récent reste au-dessus, il suffit de remonter — avant, choisir « mai 2020 »
    * masquait tout le reste.
@@ -592,6 +612,16 @@ export function App(): React.JSX.Element {
       if (row.id === 'tags') {
         const tags = state?.tags ?? [];
         if (tags.length > 0) setTagCursor(tagCursor + delta);
+        return;
+      }
+
+      if (row.id === 'mood') {
+        // « aucune » fait partie du tour : on doit pouvoir revenir en arrière
+        // sans passer par le carrousel.
+        const options: Array<Mood | null> = [null, ...MOODS];
+        const index = options.indexOf(filters.mood);
+        const next = (((index < 0 ? 0 : index) + delta) % options.length + options.length) % options.length;
+        setFilters((f) => ({ ...f, mood: options[next] }));
       }
     },
     [searchRows, nav.panelIndex, nav.subIndex, state, filters, setFilters, tagCursor, setTagCursor],
@@ -662,6 +692,7 @@ export function App(): React.JSX.Element {
         field: nav.subIndex === 0 ? 'month' : 'year',
       });
     } else if (row.id === 'place') setSheet({ kind: 'placePicker' });
+    else if (row.id === 'mood') setSheet({ kind: 'moodPicker' });
     else if (row.id === 'tags') {
       const tags = state?.tags ?? [];
       const tag = tags.length > 0 ? tags[((tagCursor % tags.length) + tags.length) % tags.length] : null;
@@ -1309,6 +1340,13 @@ export function App(): React.JSX.Element {
   // d'un moment porte sa propre liste, figée au moment du lancement.
   const showItems = show?.items ?? feed.items;
 
+  // Nom de la photo servant de référence aux « photos semblables ». Elle fait
+  // partie des résultats, donc on le trouve sans requête supplémentaire.
+  const similarName =
+    filters.similar === null
+      ? null
+      : (feed.items.find((i) => i.id === filters.similar)?.filename ?? null);
+
   const scan = state?.scan;
   const scanning = scan?.running ?? false;
   const scanProgress =
@@ -1371,6 +1409,31 @@ export function App(): React.JSX.Element {
                   {view.kind === 'videos' ? t.videoCount(feed.total) : t.photoCount(feed.total)}
                   {filtersActive && ` · ${t.filtered}`}
                 </span>
+              )}
+
+              {/* Deux filtres qui ne vivent pas dans la barre de recherche : on
+                  les montre ici, avec de quoi les retirer d'un clic. Sans ça on
+                  ne saurait pas pourquoi la chronologie est si courte. */}
+              {isMediaView && filters.similar !== null && (
+                <button
+                  className="filter-chip"
+                  onClick={() => setFilters((f) => ({ ...f, similar: null }))}
+                  title={t.clearFilters}
+                >
+                  <IconSparkle />
+                  {similarName ? t.similarTo(similarName) : t.similar}
+                  <IconX />
+                </button>
+              )}
+              {isMediaView && filters.mood !== null && (
+                <button
+                  className="filter-chip"
+                  onClick={() => setFilters((f) => ({ ...f, mood: null }))}
+                  title={t.clearFilters}
+                >
+                  {moodLabel(filters.mood, t)}
+                  <IconX />
+                </button>
               )}
               {currentAlbum && currentAlbum.kind !== 'favorites' && !isForm && (
                 <button
@@ -1724,6 +1787,10 @@ export function App(): React.JSX.Element {
             doDownload(menuItem);
             setMenu(null);
           }}
+          onSimilar={() => {
+            doSimilar(menuItem);
+            setMenu(null);
+          }}
         />
       )}
 
@@ -1757,6 +1824,7 @@ export function App(): React.JSX.Element {
       <MonthPickerSheet />
       <PlacePickerSheet />
       <TagPickerSheet />
+      <MoodPickerSheet />
       <AdminSheet />
       <FoldersSheet />
       <AddToAlbumSheet />

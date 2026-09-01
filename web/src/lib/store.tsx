@@ -2,7 +2,7 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
   type ReactNode,
 } from 'react';
-import type { AppState, MediaQuery, Settings } from '../../../shared/types';
+import type { AppState, MediaQuery, Mood, Settings } from '../../../shared/types';
 import { api } from './api';
 import { dict } from './i18n';
 
@@ -35,6 +35,14 @@ export interface Filters {
   tags: string[];
   /** Recherche par nom, utilisée sur l'écran Albums. */
   text: string;
+  /** Ambiance visuelle : couleurs et lumière, pas le contenu de la photo. */
+  mood: Mood | null;
+  /**
+   * Photo de référence : on ne garde que ce qui lui ressemble. Ce n'est pas un
+   * réglage comme les autres — il se pose d'un clic droit et se retire d'un
+   * geste, d'où sa place à part dans l'en-tête plutôt que dans la barre.
+   */
+  similar: number | null;
 }
 
 export interface Nav {
@@ -59,6 +67,7 @@ export type Sheet =
   | { kind: 'monthPicker'; which: 'from' | 'to'; field: 'month' | 'year' }
   | { kind: 'placePicker' }
   | { kind: 'tagPicker' }
+  | { kind: 'moodPicker' }
   | { kind: 'albumSort' }
   | { kind: 'upload' };
 
@@ -140,7 +149,9 @@ const DEFAULT_SETTINGS: Settings = {
   slideshowSeconds: 5, slideshowShuffle: false, slideshowPan: true, screensaverMinutes: 0,
 };
 
-const EMPTY_FILTERS: Filters = { from: null, to: null, place: null, tags: [], text: '' };
+const EMPTY_FILTERS: Filters = {
+  from: null, to: null, place: null, tags: [], text: '', mood: null, similar: null,
+};
 
 function monthStart(v: MonthValue): number {
   return new Date(v.year, v.month, 1, 0, 0, 0, 0).getTime();
@@ -249,7 +260,8 @@ export function StoreProvider({ children }: { children: ReactNode }): React.JSX.
 
   const filtersActive =
     filters.from !== null || filters.to !== null || filters.place !== null ||
-    filters.tags.length > 0 || filters.text.trim() !== '';
+    filters.tags.length > 0 || filters.text.trim() !== '' ||
+    filters.mood !== null || filters.similar !== null;
 
   const query = useMemo<MediaQuery>(() => {
     const q: MediaQuery = {};
@@ -257,6 +269,8 @@ export function StoreProvider({ children }: { children: ReactNode }): React.JSX.
     if (filters.to) q.to = monthEnd(filters.to);
     if (filters.place) q.place = filters.place;
     if (filters.tags.length) q.tags = filters.tags;
+    if (filters.mood) q.mood = filters.mood;
+    if (filters.similar !== null) q.similar = filters.similar;
     if (settings.showHidden) q.showHidden = true;
     if (view.kind === 'videos') q.kind = 'video';
     if (view.kind === 'album') q.album = view.id;

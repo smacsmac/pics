@@ -1,6 +1,6 @@
 import type {
-  Album, AppState, Chapter, HistogramBucket, MediaItem, MediaPage, MediaQuery, OnThisDay,
-  PlaybackInfo, Root, Settings, UploadResult,
+  Album, AppState, Chapter, DuplicateGroup, HistogramBucket, MediaItem, MediaPage, MediaQuery,
+  OnThisDay, PlaybackInfo, Root, Settings, UploadResult,
 } from '../../../shared/types';
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -38,6 +38,8 @@ function queryString(q: MediaQuery): string {
   if (q.place) params.set('place', q.place);
   if (q.album !== undefined) params.set('album', String(q.album));
   if (q.kind) params.set('kind', q.kind);
+  if (q.mood) params.set('mood', q.mood);
+  if (q.similar !== undefined) params.set('similar', String(q.similar));
   if (q.showHidden) params.set('showHidden', '1');
   if (q.cursor) params.set('cursor', q.cursor);
   if (q.limit) params.set('limit', String(q.limit));
@@ -201,6 +203,7 @@ export const api = {
   // ------------------------------------------------------------- souvenirs
 
   chapters: (limit = 120) => request<Chapter[]>(`/api/chapters?limit=${limit}`),
+  duplicates: (limit = 60) => request<DuplicateGroup[]>(`/api/duplicates?limit=${limit}`),
   onThisDay: () => request<OnThisDay[]>('/api/media/on-this-day'),
   mediaByIds: (ids: number[]) =>
     request<MediaItem[]>(`/api/media/by-ids?ids=${ids.join(',')}`),

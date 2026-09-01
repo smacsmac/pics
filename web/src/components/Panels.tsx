@@ -1,5 +1,5 @@
-import type { Lang } from '../../../shared/types';
-import { LANGS, monthNames } from '../lib/i18n';
+import type { Lang, Mood } from '../../../shared/types';
+import { LANGS, dict, monthNames } from '../lib/i18n';
 import {
   FONT_BOXES, FONT_MAX, HUES, SCREENSAVER_MINUTES, SLIDE_SECONDS, VOLUME_BOXES, VOLUME_MAX,
   rightRows,
@@ -8,6 +8,21 @@ import { useStore, type MonthValue } from '../lib/store';
 import {
   IconChild, IconEye, IconFolder, IconFont, IconGlobe, IconPalette, IconSlideshow, IconVolume,
 } from './Icons';
+
+/** Libellé traduit d'une ambiance. Partagé par la barre et le carrousel. */
+export function moodLabel(mood: Mood, t: ReturnType<typeof dict>): string {
+  switch (mood) {
+    case 'dark': return t.moodDark;
+    case 'bright': return t.moodBright;
+    case 'bw': return t.moodBw;
+    case 'vivid': return t.moodVivid;
+    case 'green': return t.moodGreen;
+    case 'blue': return t.moodBlue;
+    case 'warm': return t.moodWarm;
+    case 'sunset': return t.moodSunset;
+    default: return mood;
+  }
+}
 
 /** Valeur affichée dans [mois] [année] : le filtre s'il existe, sinon la borne. */
 export function displayMonth(value: MonthValue | null, fallbackTs: number | null): MonthValue {
@@ -176,9 +191,22 @@ export function SearchPanel({ onFocusRow }: PanelProps): React.JSX.Element {
 
       {tagsRow(3)}
 
+      {/* Ambiance : la recherche par couleurs et par lumière. C'est une règle
+          sur les pixels, pas de la reconnaissance — la mention le dit. */}
       <div className={`panel-row${rowAt(4) ? ' on' : ''}`} onMouseEnter={() => onFocusRow(4)}>
-        <span className="lab">{t.tbd}</span>
-        <span className="mini">—</span>
+        <span className="lab">{t.mood}</span>
+        <div className="row-line">
+          <button
+            className={`pill${rowAt(4) ? ' on' : ''}${filters.mood ? '' : ' muted'}`}
+            onClick={() => {
+              onFocusRow(4);
+              setSheet({ kind: 'moodPicker' });
+            }}
+          >
+            {filters.mood ? moodLabel(filters.mood, t) : t.anyMood}
+          </button>
+        </div>
+        {filters.mood && <span className="mini">{t.moodHint}</span>}
       </div>
 
       <button
