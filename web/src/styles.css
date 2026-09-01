@@ -1738,6 +1738,26 @@ input { background: none; border: none; outline: none; }
   text-shadow: 0 0 8px var(--glow);
 }
 
+/* Avancement du modèle de description : téléchargement, puis analyse. */
+.clip-bar {
+  height: 3px;
+  margin: 6px 0 2px;
+  border-radius: 2px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.clip-bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--glow);
+  transition: width 0.4s;
+}
+
+/* Une mention qui demande une action, plutôt qu'une simple explication. */
+.mini.warn { color: #ffb3c0; }
+
 /* --- réglages du diaporama, dans la barre de droite --- */
 
 .slide-settings { display: flex; flex-direction: column; gap: 3px; }

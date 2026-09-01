@@ -15,6 +15,7 @@ export const LEFT_ROWS: PanelRow[] = [
   { id: 'place', sub: 1 },
   { id: 'tags', sub: 1 },
   { id: 'mood', sub: 1 },
+  { id: 'describe', sub: 1 },
   { id: 'clear', sub: 1 },
 ];
 
@@ -40,6 +41,7 @@ export function rightRows(isAdmin: boolean): PanelRow[] {
     { id: 'theme', sub: 1 },
     // Diaporama : [secondes] [aléatoire] [mouvement] [démarrage auto].
     { id: 'slideshow', sub: 4 },
+    { id: 'describe', sub: 1 },
     { id: 'admin', sub: 1 },
   ];
   if (isAdmin) rows.push({ id: 'folders', sub: 1 });

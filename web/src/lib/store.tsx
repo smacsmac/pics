@@ -2,7 +2,7 @@ import {
   createContext, useCallback, useContext, useEffect, useMemo, useRef, useState,
   type ReactNode,
 } from 'react';
-import type { AppState, MediaQuery, Mood, Settings } from '../../../shared/types';
+import type { AppState, ClipState, MediaQuery, Mood, Settings } from '../../../shared/types';
 import { api } from './api';
 import { dict } from './i18n';
 
@@ -48,6 +48,18 @@ export interface Filters {
    * montrer une série précise et rien d'autre.
    */
   ids: number[] | null;
+  /**
+   * Recherche par description. Elle ne part pas au serveur avec les autres
+   * filtres : c'est un appel séparé, dont le résultat arrive dans
+   * `describeIds`.
+   */
+  describe: string;
+  /**
+   * Ce que la description a rapporté. Séparé de `ids`, qui vient du tri des
+   * quasi-doublons : vider le champ de description ne doit pas défaire une
+   * série qu'on était en train de trier.
+   */
+  describeIds: number[] | null;
 }
 
 export interface Nav {
@@ -140,6 +152,14 @@ interface Store {
   sheet: Sheet | null;
   setSheet: (sheet: Sheet | null) => void;
 
+  /**
+   * État de la recherche par description. Interrogé à part de `state` : il
+   * bouge pendant un téléchargement, et on ne veut pas relire tout le reste à
+   * chaque seconde.
+   */
+  clip: ClipState | null;
+  refreshClip: () => Promise<void>;
+
   accentHue: number;
   toast: (text: string) => void;
   toasts: Toast[];
@@ -156,6 +176,7 @@ const DEFAULT_SETTINGS: Settings = {
 
 const EMPTY_FILTERS: Filters = {
   from: null, to: null, place: null, tags: [], text: '', mood: null, similar: null, ids: null,
+  describe: '', describeIds: null,
 };
 
 function monthStart(v: MonthValue): number {
@@ -187,6 +208,7 @@ export function StoreProvider({ children }: { children: ReactNode }): React.JSX.
   const [osk, setOsk] = useState<OskRequest | null>(null);
   const [sheet, setSheet] = useState<Sheet | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [clip, setClip] = useState<ClipState | null>(null);
   const toastId = useRef(0);
 
   const refresh = useCallback(async () => {
@@ -198,6 +220,30 @@ export function StoreProvider({ children }: { children: ReactNode }): React.JSX.
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  const refreshClip = useCallback(async () => {
+    try {
+      setClip(await api.clipStatus());
+    } catch {
+      setClip(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshClip();
+  }, [refreshClip]);
+
+  /**
+   * Pendant un téléchargement ou une analyse, on suit l'avancement de près ;
+   * sinon on n'interroge plus. Un sondage permanent pour un réglage qu'on
+   * installe une fois dans sa vie serait du gaspillage.
+   */
+  useEffect(() => {
+    const actif = clip !== null && (clip.downloading !== null || clip.index.done < clip.index.total);
+    if (!actif) return;
+    const timer = setInterval(() => void refreshClip(), 1500);
+    return () => clearInterval(timer);
+  }, [clip, refreshClip]);
 
   // Les réglages s'appliquent tout de suite à l'écran et partent au serveur en
   // arrière-plan : régler le volume ou la teinte ne doit jamais « accrocher ».
@@ -266,7 +312,8 @@ export function StoreProvider({ children }: { children: ReactNode }): React.JSX.
   const filtersActive =
     filters.from !== null || filters.to !== null || filters.place !== null ||
     filters.tags.length > 0 || filters.text.trim() !== '' ||
-    filters.mood !== null || filters.similar !== null || filters.ids !== null;
+    filters.mood !== null || filters.similar !== null || filters.ids !== null ||
+    filters.describe.trim() !== '' || filters.describeIds !== null;
 
   const query = useMemo<MediaQuery>(() => {
     const q: MediaQuery = {};
@@ -276,7 +323,10 @@ export function StoreProvider({ children }: { children: ReactNode }): React.JSX.
     if (filters.tags.length) q.tags = filters.tags;
     if (filters.mood) q.mood = filters.mood;
     if (filters.similar !== null) q.similar = filters.similar;
-    if (filters.ids !== null) q.ids = filters.ids;
+    // Les deux listes ne coexistent jamais : chacune remplace toute la
+    // recherche quand elle se pose.
+    const ids = filters.describeIds ?? filters.ids;
+    if (ids !== null) q.ids = ids;
     if (settings.showHidden) q.showHidden = true;
     if (view.kind === 'videos') q.kind = 'video';
     if (view.kind === 'album') q.album = view.id;
@@ -312,6 +362,7 @@ export function StoreProvider({ children }: { children: ReactNode }): React.JSX.
     addToAlbumFor, setAddToAlbumFor, pendingAlbumMedia, setPendingAlbumMedia,
     albumTagsFor, setAlbumTagsFor, tagEditorFor, setTagEditorFor, osk, setOsk,
     sheet, setSheet,
+    clip, refreshClip,
     accentHue, toast, toasts,
   };
 

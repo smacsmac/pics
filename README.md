@@ -130,6 +130,8 @@ navigateur la voit via XInput. Deux détails à connaître —
 * **Favoris** — un album comme les autres, simplement épinglé. On y ajoute une
   photo par **Y** → *Favoris*.
 * **Vidéos** — la même chronologie, vidéos seulement.
+* **Chercher** — dates, lieu, tags, ambiance, et description si le modèle est
+  installé.
 * **Souvenirs** — ce que Photon retrouve tout seul : les photos prises un même
   jour les années passées, les « moments », et les séries de photos presque
   identiques à trier.
@@ -491,6 +493,70 @@ sa signature est rigoureusement identique, et sa date n'a alors plus son mot à
 dire. Les vidéos sont écartées — leur vignette n'est qu'une image parmi des
 milliers.
 
+## Chercher par description
+
+C'est la seule fonctionnalité de Photon qui demande une installation, et la
+seule qui touche à Internet — une fois, pour télécharger un modèle. Elle est
+**absente tant qu'on ne l'a pas voulue** : le champ n'apparaît pas, et rien ne
+se télécharge tout seul.
+
+Une fois en place, on tape « un chien sur la plage », « gâteau d'anniversaire »,
+« la neige devant la maison », et Photon retrouve les photos — sans qu'elles
+soient taguées, sans connexion, sans que rien ne quitte le PC.
+
+### L'installer
+
+*Paramètres → Recherche par description*. Deux choses sont nécessaires :
+
+1. **Le moteur d'inférence**, une seule fois, en ligne de commande :
+
+       npm install onnxruntime-node
+
+   Redémarrez Photon ensuite. C'est le seul paquet supplémentaire de tout le
+   projet, et il reste facultatif : Photon fonctionne entièrement sans.
+
+2. **Le modèle**, par le bouton *Télécharger le modèle*. Environ 170 Mo, une
+   seule fois. Il se range dans le dossier de données, à côté des vignettes.
+
+Photon analyse ensuite vos photos, à peu près une par seconde selon la machine.
+L'avancement s'affiche dans le même panneau. C'est fait une seule fois par
+photo ; les nouvelles sont analysées au fil des scans.
+
+### Ce que ça vaut
+
+Le modèle s'appelle CLIP. Il a appris à rapprocher des images et les phrases qui
+les décrivent. Il reconnaît des scènes, des objets courants, des ambiances — pas
+les visages de votre famille, et il ne saura jamais que c'est *votre* chien.
+
+Les résultats sont **les soixante photos qui correspondent le mieux**, affichées
+dans l'ordre chronologique comme le reste. Il n'y a pas de seuil : une recherche
+rapporte toujours quelque chose, même sans bonne réponse. Les premières sont les
+meilleures.
+
+L'anglais marche mieux que le français : c'est la langue sur laquelle le modèle
+a été entraîné. « a dog on the beach » donne de meilleurs résultats que « un
+chien sur la plage », qui fonctionne tout de même.
+
+### Vérifier que ça marche
+
+    npm run test:clip-model
+
+Ce contrôle n'a besoin d'aucune photo. Il demande au modèle de comparer des
+phrases dont on connaît le rapport — « un chien » doit être plus proche d'« un
+chiot » que d'un « gratte-ciel » — puis vérifie que deux aplats de couleur sont
+reconnus par les mots qui les décrivent.
+
+**À lancer après l'installation.** Cette partie-là est la seule de Photon qui
+n'a pas pu être éprouvée avant livraison : l'environnement où l'application a
+été écrite ne pouvait joindre ni le dépôt du modèle ni celui du moteur. Tout ce
+qui l'entoure l'a été — le découpage du texte face à l'implémentation d'OpenAI,
+la préparation des images face à PyTorch, l'algèbre du classement — mais
+l'inférence elle-même, non. Si ce contrôle passe, l'ensemble tient.
+
+Si le modèle téléchargé n'est pas celui attendu, Photon refuse de s'en servir et
+affiche ce que le fichier déclare, plutôt que de répondre n'importe quoi. La
+variable `PHOTON_CLIP_MODEL_URL` permet d'en essayer un autre.
+
 ## Lieux
 
 Si vos photos contiennent des coordonnées GPS, Photon les traduit en nom de
@@ -615,14 +681,23 @@ Ajoutez ce dossier dans les réglages pour voir l'application remplie.
 | `PHOTON_DATA_DIR` | emplacement de la base et des vignettes |
 | `PHOTON_OPEN=0` | ne pas ouvrir le navigateur au démarrage |
 
-### Vérifier la recherche visuelle
+### Vérifier ce qui est vérifiable
 
-    npm run test:vision
+    npm run test:vision        signatures, ambiances, empreintes, ressemblances
+    npm run test:clip-search   rangement et classement des vecteurs
+    npm run test:clip -- clip-fixtures        tokenizer, face à OpenAI
+    npm run test:clip-image -- clip-fixtures  images, face à PyTorch
+    npm run test:clip-model    le modèle lui-même, une fois installé
 
-Fabrique des images dont on connaît la couleur et la composition, les signe, et
-vérifie que les mesures, les ambiances, les empreintes et les ressemblances
-tombent juste. Confronte aussi les règles SQL des ambiances à leur équivalent
-JavaScript sur 32 000 tirages. Aucun fichier n'est écrit.
+Les deux avec `clip-fixtures` demandent des fichiers de référence à produire une
+fois ; voir `clip-fixtures/LISEZMOI.md`.
+
+`test:vision` fabrique des images dont on connaît la couleur et la composition,
+
+Fabrique des images dont on connaît la couleur et la composition, les signe, et vérifie que les mesures, les
+ambiances, les empreintes et les ressemblances tombent juste. Il confronte aussi
+les règles SQL des ambiances à leur équivalent JavaScript sur 32 000 tirages.
+Aucun fichier n'est écrit.
 
 ### Développement
 
@@ -695,6 +770,14 @@ npm start
   à quelques heures d'écart ne sont pas regroupées. C'est délibéré — sans cette
   règle, la liste se remplissait de photos qui se ressemblent sans être des
   doublons.
+* La **recherche par description** demande `npm install onnxruntime-node` et un
+  modèle de 170 Mo. C'est la seule partie de Photon qui ne soit pas autonome,
+  et la seule qui n'ait pas pu être vérifiée avant livraison — d'où
+  `npm run test:clip-model`, qui s'en assure sur votre machine.
+* CLIP reconnaît des scènes et des objets courants, **pas les visages de votre
+  famille**. Il ne saura jamais que c'est votre chien plutôt qu'un chien.
+* L'anglais donne de meilleurs résultats que le français : c'est la langue
+  d'entraînement du modèle.
 * La conversion d'une vidéo HEVC prend du temps la première fois : comptez à peu
   près la durée de la vidéo elle-même pour du 1080p, davantage en 4K. C'est fait
   une seule fois par vidéo, ensuite la lecture est immédiate. Ces copies

@@ -5,8 +5,10 @@ import {
   rightRows,
 } from '../lib/panels';
 import { useStore, type MonthValue } from '../lib/store';
+import { api } from '../lib/api';
 import {
-  IconChild, IconEye, IconFolder, IconFont, IconGlobe, IconPalette, IconSlideshow, IconVolume,
+  IconChild, IconEye, IconFolder, IconFont, IconGlobe, IconPalette, IconSlideshow, IconSparkle,
+  IconVolume,
 } from './Icons';
 
 /** Libellé traduit d'une ambiance. Partagé par la barre et le carrousel. */
@@ -37,8 +39,10 @@ interface PanelProps {
 }
 
 export function SearchPanel({ onFocusRow }: PanelProps): React.JSX.Element {
-  const { nav, filters, setFilters, clearFilters, settings, state, t, tagCursor, setSheet, view, setOsk } =
-    useStore();
+  const {
+    nav, filters, setFilters, clearFilters, settings, state, t, tagCursor, setSheet, view, setOsk,
+    clip,
+  } = useStore();
   const active = nav.zone === 'left';
   const rowAt = (i: number): boolean => active && nav.panelIndex === i;
   const months = monthNames(settings.lang);
@@ -209,10 +213,41 @@ export function SearchPanel({ onFocusRow }: PanelProps): React.JSX.Element {
         {filters.mood && <span className="mini">{t.moodHint}</span>}
       </div>
 
+      {/* Recherche par description. Elle n'apparaît que si le modèle est
+          installé : proposer un champ qui ne répond pas serait pire que de ne
+          rien proposer. Les réglages disent comment l'installer. */}
+      {clip?.ready && (
+        <div className={`panel-row${rowAt(5) ? ' on' : ''}`} onMouseEnter={() => onFocusRow(5)}>
+          <span className="lab">{t.describe}</span>
+          <div className="row-line">
+            <input
+              className="text-input"
+              value={filters.describe}
+              placeholder={t.describePlaceholder}
+              onChange={(e) => setFilters((f) => ({ ...f, describe: e.target.value }))}
+              onFocus={() => onFocusRow(5)}
+            />
+          </div>
+          <button
+            className="mini-btn"
+            onClick={() =>
+              setOsk({
+                label: t.describe,
+                value: filters.describe,
+                onCommit: (value) => setFilters((f) => ({ ...f, describe: value })),
+              })
+            }
+          >
+            {t.type}
+          </button>
+          <span className="mini">{t.describeHint}</span>
+        </div>
+      )}
+
       <button
-        className={`panel-row${rowAt(5) ? ' on' : ''}`}
+        className={`panel-row${rowAt(6) ? ' on' : ''}`}
         style={{ textAlign: 'left' }}
-        onMouseEnter={() => onFocusRow(5)}
+        onMouseEnter={() => onFocusRow(6)}
         onClick={clearFilters}
       >
         <span className="lab">{t.clearFilters}</span>
@@ -222,7 +257,7 @@ export function SearchPanel({ onFocusRow }: PanelProps): React.JSX.Element {
 }
 
 export function SettingsPanel({ onFocusRow }: PanelProps): React.JSX.Element {
-  const { nav, settings, patchSettings, state, t, setSheet } = useStore();
+  const { nav, settings, patchSettings, state, t, setSheet, clip, refreshClip } = useStore();
   const active = nav.zone === 'right';
   const isAdmin = state?.isAdmin ?? false;
   const rows = rightRows(isAdmin);
@@ -368,6 +403,71 @@ export function SettingsPanel({ onFocusRow }: PanelProps): React.JSX.Element {
             },
           )}
         </div>
+      </div>
+
+      {/* Recherche par description. Repliée tant qu'elle n'est pas installée :
+          c'est un ajout, pas un réglage ordinaire, et il coûte un
+          téléchargement. Ce qu'il fait et ce qu'il coûte sont dits avant. */}
+      <div
+        className={`panel-row${rowAt('describe') ? ' on' : ''}`}
+        onMouseEnter={() => onFocusRow(indexOf('describe'))}
+      >
+        <div className="row-line">
+          <IconSparkle />
+          <span className="lab">{t.describeSetup}</span>
+        </div>
+
+        {clip?.ready ? (
+          <>
+            <span className="mini">
+              {clip.index.done < clip.index.total
+                ? t.describeIndexing(clip.index.done, clip.index.total)
+                : t.describeReady(clip.index.done)}
+            </span>
+            {clip.index.total > 0 && clip.index.done < clip.index.total && (
+              <div className="clip-bar">
+                <i style={{ width: `${Math.round((clip.index.done / clip.index.total) * 100)}%` }} />
+              </div>
+            )}
+            {isAdmin && (
+              <button
+                className="mini-btn"
+                onClick={() => {
+                  if (!window.confirm(t.describeRemove)) return;
+                  void api.clipUninstall().then(refreshClip);
+                }}
+              >
+                {t.describeRemove}
+              </button>
+            )}
+          </>
+        ) : clip?.downloading !== null && clip?.downloading !== undefined ? (
+          <>
+            <span className="mini">{t.describeInstalling}</span>
+            <div className="clip-bar">
+              <i style={{ width: `${Math.round(clip.downloading * 100)}%` }} />
+            </div>
+          </>
+        ) : (
+          <>
+            <span className="mini">{t.describeSetupHint}</span>
+            {/* Sans le moteur d'inférence, le bouton ne servirait qu'à
+                télécharger un modèle inutilisable : on dit quoi installer. */}
+            {clip && !clip.runtime ? (
+              <span className="mini warn">{t.describeNoRuntime}</span>
+            ) : (
+              isAdmin && (
+                <button
+                  className="mini-btn"
+                  onClick={() => void api.clipInstall().then(refreshClip)}
+                >
+                  {t.describeInstall}
+                </button>
+              )
+            )}
+            {clip?.error && clip.files && <span className="mini warn">{clip.error}</span>}
+          </>
+        )}
       </div>
 
       {/* Mode enfant : l'application est ouverte par défaut, et on la bride

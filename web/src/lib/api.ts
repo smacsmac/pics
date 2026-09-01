@@ -1,6 +1,6 @@
 import type {
-  Album, AppState, Chapter, DuplicateGroup, HistogramBucket, MediaItem, MediaPage, MediaQuery,
-  OnThisDay, PlaybackInfo, Root, Settings, UploadResult,
+  Album, AppState, Chapter, ClipState, DuplicateGroup, HistogramBucket, MediaItem, MediaPage,
+  MediaQuery, OnThisDay, PlaybackInfo, Root, Settings, UploadResult,
 } from '../../../shared/types';
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -205,6 +205,16 @@ export const api = {
 
   chapters: (limit = 120) => request<Chapter[]>(`/api/chapters?limit=${limit}`),
   duplicates: (limit = 60) => request<DuplicateGroup[]>(`/api/duplicates?limit=${limit}`),
+
+  // ------------------------------------------------- recherche par description
+
+  clipStatus: () => request<ClipState>('/api/clip/status'),
+  clipInstall: () => request<{ started: boolean }>('/api/clip/install', { method: 'POST' }),
+  clipUninstall: () => request<{ ok: true }>('/api/clip/uninstall', { method: 'POST' }),
+  clipSearch: (q: string) =>
+    request<{ ids: number[]; scores: number[]; ready: boolean }>(
+      `/api/clip/search?q=${encodeURIComponent(q)}`,
+    ),
   onThisDay: () => request<OnThisDay[]>('/api/media/on-this-day'),
   mediaByIds: (ids: number[]) =>
     request<MediaItem[]>(`/api/media/by-ids?ids=${ids.join(',')}`),

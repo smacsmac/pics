@@ -142,6 +142,19 @@ export interface ScanStatus {
   error: string | null;
 }
 
+/** Où en est la recherche par description. */
+export interface ClipState {
+  runtime: boolean;
+  files: boolean;
+  ready: boolean;
+  downloading: number | null;
+  error: string | null;
+  inputs: string[];
+  outputs: string[];
+  /** Avancement de l'analyse des photos. */
+  index: { done: number; total: number };
+}
+
 export interface AppState {
   settings: Settings;
   albums: Album[];

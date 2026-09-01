@@ -415,6 +415,49 @@ export function App(): React.JSX.Element {
     [targetIds, toast, t.downloadStarted],
   );
 
+  /**
+   * La recherche par description part au serveur à part des autres filtres :
+   * elle demande un calcul, pas une clause SQL. Son résultat vient remplir la
+   * liste d'identifiants, et tout le reste de l'application s'applique dessus
+   * sans rien savoir de CLIP.
+   *
+   * Une pause avant l'envoi : on ne veut pas d'une recherche par lettre tapée.
+   */
+  useEffect(() => {
+    const query = filters.describe.trim();
+    if (query === '') return;
+    let annule = false;
+    const timer = window.setTimeout(() => {
+      void api
+        .clipSearch(query)
+        .then((r) => {
+          if (!annule) {
+            setFilters((f) => (f.describe.trim() === query ? { ...f, describeIds: r.ids } : f));
+          }
+        })
+        .catch(() => {
+          if (!annule) toast(t.describeFailed);
+        });
+    }, 350);
+    return () => {
+      annule = true;
+      window.clearTimeout(timer);
+    };
+  }, [filters.describe, setFilters, toast, t.describeFailed]);
+
+  /**
+   * Le champ vidé à la main, les résultats s'en vont avec lui — sinon la
+   * chronologie resterait coupée sans qu'on sache pourquoi. On ne touche pas à
+   * une liste posée par le tri des doublons, qui n'a rien à voir.
+   */
+  const describeVide = filters.describe.trim() === '';
+  useEffect(() => {
+    if (describeVide) {
+      setFilters((f) =>
+        f.describe.trim() === '' && f.describeIds !== null ? { ...f, describeIds: null } : f);
+    }
+  }, [describeVide, setFilters]);
+
   // ------------------------------------------------------ diaporama
 
   /** Le diaporama de ce qui est à l'écran, à partir de la photo regardée. */
@@ -478,7 +521,7 @@ export function App(): React.JSX.Element {
       // davantage, et on se demanderait d'où sortent les photos en trop.
       setFilters(() => ({
         from: null, to: null, place: null, tags: [], text: '', mood: null,
-        similar: null, ids: group.ids,
+        similar: null, ids: group.ids, describe: '', describeIds: null,
       }));
       setSelectMode(true);
       setSelection(group.ids.filter((id) => id !== group.bestId));
@@ -516,7 +559,7 @@ export function App(): React.JSX.Element {
       // par-dessus donnerait deux photos et l'air d'un bug.
       setFilters(() => ({
         from: null, to: null, place: null, tags: [], text: '', mood: null,
-        similar: item.id, ids: null,
+        similar: item.id, ids: null, describe: '', describeIds: null,
       }));
     },
     [openView, setFilters],
@@ -722,6 +765,13 @@ export function App(): React.JSX.Element {
       });
     } else if (row.id === 'place') setSheet({ kind: 'placePicker' });
     else if (row.id === 'mood') setSheet({ kind: 'moodPicker' });
+    else if (row.id === 'describe') {
+      setOsk({
+        label: t.describe,
+        value: filters.describe,
+        onCommit: (value) => setFilters((f) => ({ ...f, describe: value })),
+      });
+    }
     else if (row.id === 'tags') {
       const tags = state?.tags ?? [];
       const tag = tags.length > 0 ? tags[((tagCursor % tags.length) + tags.length) % tags.length] : null;
@@ -743,7 +793,7 @@ export function App(): React.JSX.Element {
     } else if (row.id === 'clear') clearFilters();
   }, [
     searchRows, nav.panelIndex, nav.subIndex, setSheet, state, tagCursor, setFilters, clearFilters,
-    setOsk, t.albumName, filters.text,
+    setOsk, t.albumName, filters.text, t.describe, filters.describe,
   ]);
 
   const confirmRightRow = useCallback(() => {
@@ -1463,7 +1513,18 @@ export function App(): React.JSX.Element {
                   <IconX />
                 </button>
               )}
-              {isMediaView && filters.ids !== null && (
+              {isMediaView && filters.describe.trim() !== '' && (
+                <button
+                  className="filter-chip"
+                  onClick={() => setFilters((f) => ({ ...f, describe: '', describeIds: null }))}
+                  title={t.clearFilters}
+                >
+                  <IconSparkle />
+                  {`« ${filters.describe.trim()} » · ${t.describeResults(feed.total)}`}
+                  <IconX />
+                </button>
+              )}
+              {isMediaView && filters.describe.trim() === '' && filters.ids !== null && (
                 <button
                   className="filter-chip"
                   onClick={() => setFilters((f) => ({ ...f, ids: null }))}
