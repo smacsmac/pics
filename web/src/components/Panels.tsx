@@ -50,6 +50,8 @@ export function SearchPanel({ onFocusRow }: PanelProps): React.JSX.Element {
   // Sur l'écran Albums on cherche des albums, pas des photos : ni dates ni lieu.
   const albumsView = view.kind === 'albums';
 
+  const effacerIndex = clip?.ready ? 6 : 5;
+
   const from = displayMonth(filters.from, bounds.min);
   const to = displayMonth(filters.to, bounds.max);
   const tags = state?.tags ?? [];
@@ -244,10 +246,12 @@ export function SearchPanel({ onFocusRow }: PanelProps): React.JSX.Element {
         </div>
       )}
 
+      {/* « Effacer » ferme toujours la marche : son rang dépend donc de la
+          présence de la rangée de description juste au-dessus. */}
       <button
-        className={`panel-row${rowAt(6) ? ' on' : ''}`}
+        className={`panel-row${rowAt(effacerIndex) ? ' on' : ''}`}
         style={{ textAlign: 'left' }}
-        onMouseEnter={() => onFocusRow(6)}
+        onMouseEnter={() => onFocusRow(effacerIndex)}
         onClick={clearFilters}
       >
         <span className="lab">{t.clearFilters}</span>

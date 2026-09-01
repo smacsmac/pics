@@ -646,7 +646,7 @@ export function App(): React.JSX.Element {
   // ------------------------------------------------- panneaux (valeurs -/+)
 
   // Rangées de la barre de recherche : celles des albums ou celles des photos.
-  const searchRows = leftRows(view.kind === 'albums');
+  const searchRows = leftRows(view.kind === 'albums', store.clip?.ready === true);
 
   const bumpLeftRow = useCallback(
     (delta: number) => {

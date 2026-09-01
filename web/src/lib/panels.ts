@@ -15,7 +15,6 @@ export const LEFT_ROWS: PanelRow[] = [
   { id: 'place', sub: 1 },
   { id: 'tags', sub: 1 },
   { id: 'mood', sub: 1 },
-  { id: 'describe', sub: 1 },
   { id: 'clear', sub: 1 },
 ];
 
@@ -29,9 +28,18 @@ export const ALBUM_LEFT_ROWS: PanelRow[] = [
   { id: 'clear', sub: 1 },
 ];
 
-/** Les rangées de la barre de recherche dépendent de ce qu'on regarde. */
-export function leftRows(albumsView: boolean): PanelRow[] {
-  return albumsView ? ALBUM_LEFT_ROWS : LEFT_ROWS;
+/**
+ * Les rangées de la barre de recherche dépendent de ce qu'on regarde, et de ce
+ * qui est installé. La recherche par description ne s'intercale que si son
+ * modèle est prêt : une rangée qui ne s'affiche pas laisserait un cran mort
+ * sous la croix directionnelle.
+ */
+export function leftRows(albumsView: boolean, describe = false): PanelRow[] {
+  if (albumsView) return ALBUM_LEFT_ROWS;
+  if (!describe) return LEFT_ROWS;
+  const rows = [...LEFT_ROWS];
+  rows.splice(rows.length - 1, 0, { id: 'describe', sub: 1 });
+  return rows;
 }
 
 export function rightRows(isAdmin: boolean): PanelRow[] {
