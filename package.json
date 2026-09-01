@@ -12,7 +12,8 @@
     "start": "tsx server/src/index.ts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p web/tsconfig.json",
     "seed": "tsx scripts/seed-demo.ts",
-    "test:vision": "tsx scripts/test-vision.ts"
+    "test:vision": "tsx scripts/test-vision.ts",
+    "test:clip": "tsx scripts/test-clip-tokenizer.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
