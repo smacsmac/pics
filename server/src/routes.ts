@@ -22,6 +22,10 @@ import { getSettings, saveSettings } from './settings.js';
 import { nearestThumbSize, removeThumbs } from './thumbs.js';
 import { playbackInfo, proxyFile, removeProxy } from './transcode.js';
 import { zipStream } from './zip.js';
+import {
+  clipStatus, embedText, install as clipInstall, load as clipLoad, uninstall as clipUninstall,
+} from './clip/model.js';
+import { progress as clipProgress, rank as rankClip } from './clip/search.js';
 
 /** Plafond d'un téléchargement groupé : au-delà, mieux vaut copier le dossier. */
 const DOWNLOAD_MAX = 2000;
@@ -482,6 +486,50 @@ export function registerRoutes(app: FastifyInstance, onRootsChanged: () => void 
 
   /** « Ce jour-là » : les photos prises un même jour, les années précédentes. */
   app.get('/api/media/on-this-day', async () => onThisDay(getSettings().lang));
+
+  // ------------------------------------------------ recherche par description
+
+  /** Où en est le modèle : installé, chargé, en cours de téléchargement. */
+  app.get('/api/clip/status', async () => ({ ...clipStatus(), index: clipProgress() }));
+
+  /**
+   * Installe le modèle. Seul moment où Photon touche à Internet, et il faut le
+   * demander : rien ne se télécharge tout seul.
+   */
+  app.post('/api/clip/install', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return;
+    // On ne fait pas attendre la requête : le téléchargement dure des minutes,
+    // l'interface suit l'avancement par /api/clip/status.
+    void clipInstall().then((r) => {
+      if (r.ok) void scan();
+    });
+    return { started: true };
+  });
+
+  app.post('/api/clip/uninstall', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return;
+    await clipUninstall();
+    db.prepare(`UPDATE media SET clip_state = 'pending', clip = NULL`).run();
+    return { ok: true };
+  });
+
+  /**
+   * Cherche par description. Renvoie les identifiants les mieux classés ; c'est
+   * l'interface qui les affiche, dans l'ordre chronologique comme le reste.
+   */
+  app.get('/api/clip/search', async (req, reply) => {
+    const query = String((req.query as { q?: string }).q ?? '').trim();
+    if (!query) return { ids: [], scores: [], ready: clipStatus().ready };
+    if (!(await clipLoad())) {
+      return reply.code(503).send({ error: 'clip_unavailable', detail: clipStatus().error });
+    }
+    const vec = await embedText(query);
+    if (!vec) return reply.code(503).send({ error: 'clip_unavailable' });
+
+    const limit = Math.min(200, Math.max(1, parseNum((req.query as { limit?: string }).limit) ?? 60));
+    const hits = rankClip(vec, limit, isAdmin(req) && getSettings().showHidden);
+    return { ids: hits.map((h) => h.id), scores: hits.map((h) => h.score), ready: true };
+  });
 
   /**
    * Les séries de photos quasi identiques. Réservé à l'admin : c'est un outil de

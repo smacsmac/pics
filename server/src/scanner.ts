@@ -5,9 +5,11 @@ import exifr from 'exifr';
 import type { ScanStatus } from '../../shared/types.js';
 import { db } from './db.js';
 import { reverseGeocode } from './geocode.js';
-import { PHOTO_EXT, SKIP_DIRS, VIDEO_EXT } from './paths.js';
+import { PHOTO_EXT, SKIP_DIRS, thumbPath, VIDEO_EXT } from './paths.js';
 import { makeThumbs, probeVideo, removeThumbs } from './thumbs.js';
 import { signatureFromThumb } from './vision.js';
+import { clipStatus, embedImage, load as loadClip } from './clip/model.js';
+import { saveEmbedding } from './clip/search.js';
 import { removeProxy } from './transcode.js';
 
 export const status: ScanStatus = {
@@ -19,6 +21,8 @@ export const status: ScanStatus = {
   thumbsTotal: 0,
   sigDone: 0,
   sigTotal: 0,
+  clipDone: 0,
+  clipTotal: 0,
   startedAt: null,
   finishedAt: null,
   error: null,
@@ -331,6 +335,47 @@ async function buildPendingSignatures(): Promise<void> {
   await Promise.all(Array.from({ length: workers }, () => worker()));
 }
 
+/**
+ * Calcule les vecteurs CLIP des photos qui n'en ont pas.
+ *
+ * Ne fait rien si le modèle n'est pas installé : c'est une fonctionnalité qu'on
+ * ajoute si on veut, et son absence ne doit jamais ralentir un scan ordinaire.
+ *
+ * On part de la vignette de 960 px, largement au-dessus des 224 px attendus, ce
+ * qui évite de redécoder un original de vingt-quatre mégapixels par photo. Un
+ * seul fil : l'inférence occupe déjà tous les cœurs.
+ */
+async function buildPendingEmbeddings(): Promise<void> {
+  if (!clipStatus().files) return;
+  if (!(await loadClip())) return;
+
+  status.phase = 'clip';
+  const pending = db
+    .prepare(
+      `SELECT id FROM media
+        WHERE clip_state = 'pending' AND missing = 0 AND kind = 'photo'
+          AND thumb_state = 'ready'`,
+    )
+    .all() as Array<{ id: number }>;
+
+  status.clipTotal = pending.length;
+  status.clipDone = 0;
+  notify();
+  if (pending.length === 0) return;
+
+  for (const { id } of pending) {
+    const file = thumbPath(id, 960);
+    try {
+      const source = await fs.promises.readFile(file);
+      saveEmbedding(id, await embedImage(source));
+    } catch {
+      db.prepare(`UPDATE media SET clip_state = 'failed' WHERE id = ?`).run(id);
+    }
+    status.clipDone++;
+    if (status.clipDone % 10 === 0 || status.clipDone === pending.length) notify();
+  }
+}
+
 export async function scan(): Promise<void> {
   if (status.running) return;
   status.running = true;
@@ -341,6 +386,8 @@ export async function scan(): Promise<void> {
   status.thumbsTotal = 0;
   status.sigDone = 0;
   status.sigTotal = 0;
+  status.clipDone = 0;
+  status.clipTotal = 0;
   status.startedAt = Date.now();
   status.finishedAt = null;
   status.error = null;
@@ -369,6 +416,7 @@ export async function scan(): Promise<void> {
     notify();
     await buildPendingThumbs();
     await buildPendingSignatures();
+    await buildPendingEmbeddings();
 
     status.phase = 'done';
     status.finishedAt = Date.now();

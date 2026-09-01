@@ -14,7 +14,9 @@
     "seed": "tsx scripts/seed-demo.ts",
     "test:vision": "tsx scripts/test-vision.ts",
     "test:clip": "tsx scripts/test-clip-tokenizer.ts",
-    "test:clip-image": "tsx scripts/test-clip-image.ts"
+    "test:clip-image": "tsx scripts/test-clip-image.ts",
+    "test:clip-search": "tsx scripts/test-clip-search.ts",
+    "test:clip-model": "tsx scripts/test-clip-model.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",

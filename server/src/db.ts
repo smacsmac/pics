@@ -148,6 +148,13 @@ addColumnIfMissing('media', 'sig_colorful', 'REAL');
 addColumnIfMissing('media', 'sig_hue', 'INTEGER');
 db.exec(`CREATE INDEX IF NOT EXISTS idx_media_sig ON media(sig_state)`);
 
+// Vecteur CLIP : 512 nombres decrivant ce qu'on voit sur la photo, pour la
+// recherche par description. Facultatif — la colonne reste vide tant que le
+// modele n'est pas installe, et tout le reste fonctionne sans.
+addColumnIfMissing('media', 'clip_state', "TEXT NOT NULL DEFAULT 'pending'");
+addColumnIfMissing('media', 'clip', 'BLOB');
+db.exec(`CREATE INDEX IF NOT EXISTS idx_media_clip ON media(clip_state)`);
+
 /** L'album « favoris » est un album normal, simplement épinglé et non supprimable. */
 export function ensureFavoritesAlbum(): number {
   const existing = db.prepare(`SELECT id FROM albums WHERE kind = 'favorites'`).get() as

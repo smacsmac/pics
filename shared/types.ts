@@ -126,7 +126,7 @@ export interface DuplicateGroup {
 
 export interface ScanStatus {
   running: boolean;
-  phase: 'idle' | 'walking' | 'indexing' | 'thumbnails' | 'signatures' | 'done';
+  phase: 'idle' | 'walking' | 'indexing' | 'thumbnails' | 'signatures' | 'clip' | 'done';
   found: number;
   indexed: number;
   thumbsDone: number;
@@ -134,6 +134,9 @@ export interface ScanStatus {
   /** Signatures visuelles calculées, et combien restent à faire. */
   sigDone: number;
   sigTotal: number;
+  /** Vecteurs CLIP calculés, quand le modèle est installé. */
+  clipDone: number;
+  clipTotal: number;
   startedAt: number | null;
   finishedAt: number | null;
   error: string | null;
