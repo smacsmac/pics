@@ -16,3 +16,21 @@ Placez-le dans ce dossier, puis lancez `npm run test:clip -- clip-fixtures`.
 
 C'est le même fichier que Photon télécharge pour la recherche par description :
 une fois le modèle installé, il est déjà dans le dossier de données.
+
+## Préparation d'image
+
+`images/` — cinq images de formes variées : carrée, paysage, portrait,
+panorama, et une plus petite que 224 px.
+
+`ref_image.py` reproduit la chaîne officielle de CLIP en PIL et numpy, et écrit
+le tenseur attendu :
+
+    pip install pillow numpy
+    python3 ref_image.py attendu_image.json images/*.png
+    npm run test:clip-image -- clip-fixtures
+
+Le fichier produit pèse une quinzaine de mégaoctets : il n'est pas conservé
+dans le dépôt, mais se régénère en une seconde.
+
+`reference.py` fait la même chose pour le tokenizer, avec
+`clip/simple_tokenizer.py` d'OpenAI dans le même dossier.
