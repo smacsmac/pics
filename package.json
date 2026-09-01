@@ -11,7 +11,8 @@
     "build": "vite build",
     "start": "tsx server/src/index.ts",
     "typecheck": "tsc --noEmit && tsc --noEmit -p web/tsconfig.json",
-    "seed": "tsx scripts/seed-demo.ts"
+    "seed": "tsx scripts/seed-demo.ts",
+    "test:vision": "tsx scripts/test-vision.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",

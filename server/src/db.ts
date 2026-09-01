@@ -135,6 +135,19 @@ addColumnIfMissing('albums', 'pinned', 'INTEGER NOT NULL DEFAULT 0');
 // vignettes et à l'affichage ; le fichier d'origine n'est jamais réécrit.
 addColumnIfMissing('media', 'rotation', 'INTEGER NOT NULL DEFAULT 0');
 
+// Signature visuelle : de quoi comparer deux photos sans les regarder. La
+// grille 8×8 et l'empreinte servent aux ressemblances et aux quasi-doublons,
+// les quatre mesures aux recherches par ambiance. Une bibliothèque déjà
+// indexée les calcule à son prochain scan, sans refaire les vignettes.
+addColumnIfMissing('media', 'sig_state', "TEXT NOT NULL DEFAULT 'pending'");
+addColumnIfMissing('media', 'sig_grid', 'BLOB');
+addColumnIfMissing('media', 'sig_phash', 'BLOB');
+addColumnIfMissing('media', 'sig_light', 'REAL');
+addColumnIfMissing('media', 'sig_sat', 'REAL');
+addColumnIfMissing('media', 'sig_colorful', 'REAL');
+addColumnIfMissing('media', 'sig_hue', 'INTEGER');
+db.exec(`CREATE INDEX IF NOT EXISTS idx_media_sig ON media(sig_state)`);
+
 /** L'album « favoris » est un album normal, simplement épinglé et non supprimable. */
 export function ensureFavoritesAlbum(): number {
   const existing = db.prepare(`SELECT id FROM albums WHERE kind = 'favorites'`).get() as

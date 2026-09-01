@@ -104,13 +104,36 @@ export interface UploadResult {
   outcome: 'stored' | 'duplicate' | 'rejected';
 }
 
+/**
+ * Ambiances proposées par la recherche visuelle. Ce sont des règles sur les
+ * couleurs, pas de la reconnaissance d'objets : « coucher de soleil » signifie
+ * « tons chauds et saturés, ni trop clairs ni trop sombres ».
+ */
+export type Mood = 'dark' | 'bright' | 'bw' | 'vivid' | 'green' | 'blue' | 'warm' | 'sunset';
+
+export const MOODS: Mood[] = ['dark', 'bright', 'bw', 'vivid', 'green', 'blue', 'warm', 'sunset'];
+
+/** Une série de photos quasi identiques : une rafale, ou le même cliché en double. */
+export interface DuplicateGroup {
+  /** Identifiant stable, dérivé du plus ancien membre. */
+  id: string;
+  ids: number[];
+  /** La plus définie du lot : celle qu'on garderait. */
+  bestId: number;
+  from: number;
+  to: number;
+}
+
 export interface ScanStatus {
   running: boolean;
-  phase: 'idle' | 'walking' | 'indexing' | 'thumbnails' | 'done';
+  phase: 'idle' | 'walking' | 'indexing' | 'thumbnails' | 'signatures' | 'done';
   found: number;
   indexed: number;
   thumbsDone: number;
   thumbsTotal: number;
+  /** Signatures visuelles calculées, et combien restent à faire. */
+  sigDone: number;
+  sigTotal: number;
   startedAt: number | null;
   finishedAt: number | null;
   error: string | null;
@@ -143,6 +166,10 @@ export interface AppState {
 }
 
 export interface MediaQuery {
+  /** Ambiance visuelle demandée : couleurs et lumière, pas le contenu. */
+  mood?: Mood;
+  /** Ne garder que les photos qui ressemblent à celle-ci. */
+  similar?: number;
   from?: number; // epoch ms inclusif
   to?: number; // epoch ms inclusif
   tags?: string[];

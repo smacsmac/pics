@@ -7,6 +7,7 @@ import { db } from './db.js';
 import { reverseGeocode } from './geocode.js';
 import { PHOTO_EXT, SKIP_DIRS, VIDEO_EXT } from './paths.js';
 import { makeThumbs, probeVideo, removeThumbs } from './thumbs.js';
+import { signatureFromThumb } from './vision.js';
 import { removeProxy } from './transcode.js';
 
 export const status: ScanStatus = {
@@ -16,6 +17,8 @@ export const status: ScanStatus = {
   indexed: 0,
   thumbsDone: 0,
   thumbsTotal: 0,
+  sigDone: 0,
+  sigTotal: 0,
   startedAt: null,
   finishedAt: null,
   error: null,
@@ -262,7 +265,10 @@ async function buildPendingThumbs(): Promise<void> {
   status.thumbsDone = 0;
   notify();
 
-  const markReady = db.prepare(`UPDATE media SET thumb_state = ? WHERE id = ?`);
+  // La signature est calculée depuis la vignette : refaire l'une périme l'autre.
+  const markReady = db.prepare(
+    `UPDATE media SET thumb_state = ?, sig_state = 'pending' WHERE id = ?`,
+  );
   const workers = Math.max(2, Math.min(4, os.cpus().length - 1));
   let cursor = 0;
 
@@ -279,6 +285,52 @@ async function buildPendingThumbs(): Promise<void> {
   await Promise.all(Array.from({ length: workers }, () => worker()));
 }
 
+/**
+ * Signe les photos qui ne le sont pas encore. On lit la vignette de 240 px et
+ * non l'original : quelques millisecondes par photo au lieu de plusieurs
+ * dixièmes de seconde, pour un résultat identique à cette échelle.
+ *
+ * Une bibliothèque déjà indexée passe donc ici une seule fois, sans que ses
+ * vignettes soient refaites.
+ */
+async function buildPendingSignatures(): Promise<void> {
+  status.phase = 'signatures';
+  const pending = db
+    .prepare(
+      `SELECT id FROM media
+        WHERE sig_state = 'pending' AND missing = 0 AND thumb_state = 'ready'`,
+    )
+    .all() as Array<{ id: number }>;
+
+  status.sigTotal = pending.length;
+  status.sigDone = 0;
+  notify();
+  if (pending.length === 0) return;
+
+  const save = db.prepare(
+    `UPDATE media SET sig_state = 'ready', sig_grid = @grid, sig_phash = @phash,
+       sig_light = @light, sig_sat = @sat, sig_colorful = @colorful, sig_hue = @hue
+     WHERE id = @id`,
+  );
+  const fail = db.prepare(`UPDATE media SET sig_state = 'failed' WHERE id = ?`);
+
+  const workers = Math.max(2, Math.min(4, os.cpus().length - 1));
+  let cursor = 0;
+
+  async function worker(): Promise<void> {
+    while (cursor < pending.length) {
+      const { id } = pending[cursor++];
+      const sig = await signatureFromThumb(id);
+      if (sig) save.run({ id, ...sig });
+      else fail.run(id);
+      status.sigDone++;
+      if (status.sigDone % 25 === 0 || status.sigDone === pending.length) notify();
+    }
+  }
+
+  await Promise.all(Array.from({ length: workers }, () => worker()));
+}
+
 export async function scan(): Promise<void> {
   if (status.running) return;
   status.running = true;
@@ -287,6 +339,8 @@ export async function scan(): Promise<void> {
   status.indexed = 0;
   status.thumbsDone = 0;
   status.thumbsTotal = 0;
+  status.sigDone = 0;
+  status.sigTotal = 0;
   status.startedAt = Date.now();
   status.finishedAt = null;
   status.error = null;
@@ -314,6 +368,7 @@ export async function scan(): Promise<void> {
     }
     notify();
     await buildPendingThumbs();
+    await buildPendingSignatures();
 
     status.phase = 'done';
     status.finishedAt = Date.now();

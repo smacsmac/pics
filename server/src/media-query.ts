@@ -1,8 +1,9 @@
 import type {
-  Chapter, HistogramBucket, Lang, MediaItem, MediaPage, OnThisDay,
+  Chapter, DuplicateGroup, HistogramBucket, Lang, MediaItem, MediaPage, Mood, OnThisDay,
 } from '../../shared/types.js';
 import { db, FAVORITES_ID } from './db.js';
 import { formatPlace } from './geocode.js';
+import { gridDistance, hamming, moodSql, similarity } from './vision.js';
 
 export interface Filters {
   from?: number;
@@ -12,6 +13,10 @@ export interface Filters {
   album?: number;
   kind?: 'photo' | 'video';
   includeHidden?: boolean;
+  /** Ambiance visuelle : couleurs et lumière, pas le contenu de la photo. */
+  mood?: Mood;
+  /** Ne garder que ce qui ressemble à cette photo-ci. */
+  similar?: number;
 }
 
 interface MediaRow {
@@ -89,7 +94,128 @@ function buildWhere(f: Filters): { sql: string; params: unknown[]; joins: string
     }
   }
 
+  if (f.mood) {
+    const rule = moodSql(f.mood);
+    // Une photo non signée n'a pas d'ambiance connue : mieux vaut l'écarter que
+    // la faire passer pour terne.
+    if (rule) where.push(`(m.sig_state = 'ready' AND ${rule})`);
+  }
+
+  if (f.similar !== undefined) {
+    const ids = similarIds(f.similar);
+    // Aucun résultat : une condition toujours fausse, plutôt qu'un `IN ()` que
+    // SQLite refuse.
+    if (ids.length === 0) where.push('0');
+    else where.push(`m.id IN (${ids.join(',')})`);
+  }
+
   return { sql: where.join(' AND '), params, joins };
+}
+
+/** Toutes les signatures en mémoire : 200 octets par photo, négligeable. */
+function loadSignatures(): Array<{ id: number; grid: Buffer; phash: Buffer }> {
+  return db
+    .prepare(
+      `SELECT id, sig_grid AS grid, sig_phash AS phash FROM media
+        WHERE sig_state = 'ready' AND missing = 0 AND sig_grid IS NOT NULL`,
+    )
+    .all() as Array<{ id: number; grid: Buffer; phash: Buffer }>;
+}
+
+/** En deçà, deux photos n'ont plus grand-chose en commun. */
+const SIMILAR_MIN = 0.72;
+const SIMILAR_MAX = 200;
+
+/**
+ * Les photos qui ressemblent le plus à celle donnée, elle-même comprise. On
+ * compare la signature de chacune : quelques millions d'opérations pour une
+ * bibliothèque de dix mille photos, soit une poignée de millisecondes —
+ * inutile de bâtir un index.
+ */
+export function similarIds(id: number): number[] {
+  const target = db
+    .prepare(
+      `SELECT sig_grid AS grid, sig_phash AS phash FROM media
+        WHERE id = ? AND sig_state = 'ready'`,
+    )
+    .get(id) as { grid: Buffer; phash: Buffer } | undefined;
+  if (!target || !target.grid) return [];
+
+  const scored: Array<{ id: number; score: number }> = [];
+  for (const row of loadSignatures()) {
+    if (row.id === id) continue;
+    const score = similarity(target, row);
+    if (score >= SIMILAR_MIN) scored.push({ id: row.id, score });
+  }
+  scored.sort((a, b) => b.score - a.score);
+  // La photo de départ reste dans le lot : on veut la voir au milieu des
+  // autres pour juger de la ressemblance.
+  return [id, ...scored.slice(0, SIMILAR_MAX).map((r) => r.id)];
+}
+
+/** Au-delà, ce ne sont plus deux prises du même instant mais deux photos. */
+const DUP_HAMMING = 12; // sur 128 bits
+const DUP_GRID = 0.1;
+/** Les doublons se suivent dans le temps : inutile de comparer au-delà. */
+const DUP_WINDOW = 60;
+
+/**
+ * Les séries de photos quasi identiques : la même scène prise cinq fois, ou un
+ * fichier importé deux fois sous deux noms. Regroupées par proximité de
+ * l'empreinte *et* de la grille — l'empreinte seule confond volontiers deux
+ * images de composition voisine mais de couleurs opposées.
+ *
+ * Rien n'est supprimé : Photon montre les séries, c'est vous qui triez.
+ */
+export function duplicateGroups(limit = 60): DuplicateGroup[] {
+  const rows = db
+    .prepare(
+      `SELECT id, taken_at, width, height, sig_grid AS grid, sig_phash AS phash
+         FROM media
+        WHERE sig_state = 'ready' AND missing = 0 AND hidden = 0 AND sig_grid IS NOT NULL
+        ORDER BY taken_at DESC`,
+    )
+    .all() as Array<{
+      id: number; taken_at: number; width: number | null; height: number | null;
+      grid: Buffer; phash: Buffer;
+    }>;
+
+  const seen = new Set<number>();
+  const groups: DuplicateGroup[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const a = rows[i];
+    if (seen.has(a.id)) continue;
+    const members = [a];
+
+    // On ne compare qu'à un voisinage, ce qui évite un balayage en carré.
+    for (let j = i + 1; j < Math.min(rows.length, i + DUP_WINDOW); j++) {
+      const b = rows[j];
+      if (seen.has(b.id)) continue;
+      if (hamming(a.phash, b.phash) <= DUP_HAMMING && gridDistance(a.grid, b.grid) <= DUP_GRID) {
+        members.push(b);
+      }
+    }
+
+    if (members.length < 2) continue;
+    for (const m of members) seen.add(m.id);
+
+    // « La meilleure » : la plus définie, à défaut la première du lot.
+    const best = members.reduce((keep, m) =>
+      (m.width ?? 0) * (m.height ?? 0) > (keep.width ?? 0) * (keep.height ?? 0) ? m : keep,
+    );
+    const times = members.map((m) => m.taken_at);
+    groups.push({
+      id: `d${members[members.length - 1].id}`,
+      ids: members.map((m) => m.id),
+      bestId: best.id,
+      from: Math.min(...times),
+      to: Math.max(...times),
+    });
+    if (groups.length >= limit) break;
+  }
+
+  return groups;
 }
 
 function decorate(rows: MediaRow[], lang: Lang): MediaItem[] {

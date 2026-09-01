@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import type { Album, AlbumSort, AppState, Root, UploadResult } from '../../shared/types.js';
+import type { Album, AlbumSort, AppState, Mood, Root, UploadResult } from '../../shared/types.js';
+import { MOODS } from '../../shared/types.js';
 import {
   drainInbox, ensureTempDir, fileIntoLibrary, importRoot, isKnownNameSize, safeName, TEMP_DIR,
 } from './import.js';
@@ -12,8 +13,8 @@ import {
 } from './auth.js';
 import { db, FAVORITES_ID, pruneOrphanTags, tagId } from './db.js';
 import {
-  chapters, dateBounds, distinctPlaces, getMedia, getMediaByIds, histogram, onThisDay,
-  queryMedia, randomFavorite, type Filters,
+  chapters, dateBounds, distinctPlaces, duplicateGroups, getMedia, getMediaByIds, histogram,
+  onThisDay, queryMedia, randomFavorite, type Filters,
 } from './media-query.js';
 import { PORT, thumbPath } from './paths.js';
 import { backfillPlaces, onScanProgress, scan, status as scanStatus } from './scanner.js';
@@ -65,6 +66,8 @@ function filtersFrom(query: Record<string, unknown>, admin: boolean): Filters {
     place: typeof query.place === 'string' && query.place ? query.place : undefined,
     album: parseNum(query.album),
     kind: query.kind === 'photo' || query.kind === 'video' ? query.kind : undefined,
+    mood: MOODS.includes(query.mood as Mood) ? (query.mood as Mood) : undefined,
+    similar: parseNum(query.similar),
     // Les photos masquées ne réapparaissent que si un admin l'a demandé.
     includeHidden: admin && showHidden,
   };
@@ -478,6 +481,16 @@ export function registerRoutes(app: FastifyInstance, onRootsChanged: () => void 
 
   /** « Ce jour-là » : les photos prises un même jour, les années précédentes. */
   app.get('/api/media/on-this-day', async () => onThisDay(getSettings().lang));
+
+  /**
+   * Les séries de photos quasi identiques. Réservé à l'admin : c'est un outil de
+   * ménage, et il mène droit à « cacher ».
+   */
+  app.get('/api/duplicates', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return;
+    const limit = Math.min(200, Math.max(1, parseNum((req.query as { limit?: string }).limit) ?? 60));
+    return duplicateGroups(limit);
+  });
 
   /** Un lot de photos par identifiants : de quoi lancer un diaporama d'un moment. */
   app.get('/api/media/by-ids', async (req) => {
