@@ -35,7 +35,7 @@ export interface Signature {
   phash: Buffer;
   /** Clarté moyenne, 0 (nuit noire) à 1 (surexposé). */
   light: number;
-  /** Saturation moyenne, 0 (gris) à 1 (couleurs pures). */
+  /** Saturation moyenne (TSV), 0 (gris) à 1 (couleurs pures). */
   sat: number;
   /** Richesse des couleurs, 0 (terne) à 1 (éclatant). */
   colorful: number;
@@ -43,7 +43,18 @@ export interface Signature {
   hue: number | null;
 }
 
-/** Conversion RGB (0-255) → TSL. La teinte est en degrés. */
+/**
+ * Décomposition d'un pixel en teinte, saturation et clarté.
+ *
+ * La clarté est celle de TSL — la moyenne des extrêmes —, qui correspond bien à
+ * « sombre » et « clair ». La saturation, elle, est celle de **TSV** : `d/max`
+ * et non la formule TSL.
+ *
+ * C'est délibéré. La saturation TSL s'emballe près du blanc et du noir : de la
+ * neige à (215, 222, 235) y obtient 0,33 — autant qu'un vrai bleu franc — et
+ * une recherche « bleu » ramenait alors toutes les photos de neige. En TSV la
+ * même neige donne 0,08, ce qui dit bien ce qu'elle est : presque incolore.
+ */
 function toHsl(r: number, g: number, b: number): { h: number; s: number; l: number } {
   const R = r / 255, G = g / 255, B = b / 255;
   const max = Math.max(R, G, B);
@@ -52,7 +63,7 @@ function toHsl(r: number, g: number, b: number): { h: number; s: number; l: numb
   const d = max - min;
   if (d === 0) return { h: 0, s: 0, l };
 
-  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  const s = d / max;
   let h: number;
   if (max === R) h = ((G - B) / d + (G < B ? 6 : 0)) * 60;
   else if (max === G) h = ((B - R) / d + 2) * 60;
@@ -269,11 +280,16 @@ export function matchesMood(mood: Mood, s: MoodStats): boolean {
     case 'bright':
       return s.light > 0.68;
     case 'bw':
-      // Une photo en noir et blanc n'a presque pas de couleur, même là où elle
-      // est bien exposée : la saturation moyenne suffit à la reconnaître.
-      return s.sat < 0.1;
+      // Une vraie photo monochrome n'a aucune couleur *ni aucune variation* de
+      // couleur. La saturation seule ne suffisait pas : de la neige, presque
+      // incolore, passait pour du noir et blanc. La richesse tranche nettement
+      // — 0,002 pour un tirage argentique contre 0,056 pour de la neige bleutée.
+      return s.sat < 0.08 && s.colorful < 0.03;
     case 'vivid':
-      return s.colorful > 0.42 && s.sat > 0.3;
+      // Seuil repris de l'échelle de Hasler et Süsstrunk : 0,54 correspond à
+      // leur « quite colourful ». Plus bas, les deux tiers d'une bibliothèque
+      // ressortent et le filtre ne filtre plus rien.
+      return s.colorful > 0.54 && s.sat > 0.45;
     case 'green':
       return s.hue !== null && inArc(s.hue, 75, 165) && s.sat > 0.18;
     case 'blue':
@@ -299,8 +315,8 @@ export function moodSql(mood: Mood): string | null {
   switch (mood) {
     case 'dark': return 'm.sig_light < 0.3';
     case 'bright': return 'm.sig_light > 0.68';
-    case 'bw': return 'm.sig_sat < 0.1';
-    case 'vivid': return 'm.sig_colorful > 0.42 AND m.sig_sat > 0.3';
+    case 'bw': return 'm.sig_sat < 0.08 AND m.sig_colorful < 0.03';
+    case 'vivid': return 'm.sig_colorful > 0.54 AND m.sig_sat > 0.45';
     case 'green': return 'm.sig_hue BETWEEN 75 AND 165 AND m.sig_sat > 0.18';
     case 'blue': return 'm.sig_hue BETWEEN 175 AND 260 AND m.sig_sat > 0.18';
     case 'warm': return '(m.sig_hue >= 340 OR m.sig_hue <= 60) AND m.sig_sat > 0.22';

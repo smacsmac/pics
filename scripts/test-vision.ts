@@ -95,6 +95,8 @@ console.log('\n=== ambiances ===');
     ['noir et blanc', await scene([[30, 30, 30], [140, 140, 140], [230, 230, 230]]), ['bw'], ['vivid', 'green', 'blue']],
     ['feuillage', await scene([[40, 130, 45], [60, 160, 55], [30, 110, 40]]), ['green'], ['blue', 'bw', 'warm']],
     ['mer', await scene([[30, 90, 190], [40, 110, 210], [25, 80, 170]]), ['blue'], ['green', 'bw', 'warm']],
+    // De la neige : presque incolore, mais ce n'est pas du noir et blanc.
+    ['neige', await scene([[238, 240, 245], [225, 230, 242], [215, 222, 235]]), ['bright'], ['bw', 'blue', 'vivid', 'dark']],
     ['coucher de soleil', await scene([[200, 90, 20], [225, 120, 30], [180, 60, 15]]), ['warm', 'sunset'], ['blue', 'green', 'bw']],
   ];
 
@@ -153,6 +155,14 @@ console.log('\n=== ressemblance ===');
   ok('la ressemblance est bien ordonnee', proche > loin, `${proche.toFixed(2)} > ${loin.toFixed(2)}`);
   ok('une image est identique a elle-meme', similarity(a, a) === 1);
   ok('la distance de grille est nulle sur soi-meme', gridDistance(a.grid, a.grid) === 0);
+
+  // Meme composition, couleurs opposees. L'empreinte les declare identiques —
+  // elle ne regarde que la structure — et c'est la grille qui doit trancher.
+  // Sans quoi une foret et un ocean passeraient pour la meme photo.
+  const memeStructure = await sig(await scene([[40, 40, 200], [200, 40, 40], [230, 220, 40], [40, 200, 40]]));
+  const structure = similarity(a, memeStructure);
+  ok('des couleurs opposees ne se ressemblent pas', structure < 0.88,
+     `${structure.toFixed(3)} (empreinte ${hamming(a.phash, memeStructure.phash)}/128)`);
 }
 
 console.log('\n=== les regles SQL disent la meme chose que le code ===');

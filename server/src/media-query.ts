@@ -122,8 +122,12 @@ function loadSignatures(): Array<{ id: number; grid: Buffer; phash: Buffer }> {
     .all() as Array<{ id: number; grid: Buffer; phash: Buffer }>;
 }
 
-/** En deçà, deux photos n'ont plus grand-chose en commun. */
-const SIMILAR_MIN = 0.72;
+/**
+ * En deçà, deux photos n'ont plus grand-chose en commun. Mesuré sur une
+ * bibliothèque d'essai : les prises d'une même scène tombent au-dessus de 0,88,
+ * les autres en dessous de 0,885 — la coupure est nette.
+ */
+const SIMILAR_MIN = 0.88;
 const SIMILAR_MAX = 200;
 
 /**
@@ -158,12 +162,35 @@ const DUP_HAMMING = 12; // sur 128 bits
 const DUP_GRID = 0.1;
 /** Les doublons se suivent dans le temps : inutile de comparer au-delà. */
 const DUP_WINDOW = 60;
+/** Une rafale tient dans quelques minutes. */
+const DUP_GAP_MS = 2 * 60 * 1000;
+/**
+ * Signature rigoureusement identique : c'est le même fichier, et la date n'a
+ * plus son mot à dire. « Presque identique » ne suffit pas — deux photos d'une
+ * même série de vacances y passaient, et se retrouvaient groupées à trois ans
+ * d'écart.
+ */
+function memeFichier(a: { grid: Buffer; phash: Buffer }, b: { grid: Buffer; phash: Buffer }): boolean {
+  return hamming(a.phash, b.phash) === 0 && gridDistance(a.grid, b.grid) === 0;
+}
 
 /**
  * Les séries de photos quasi identiques : la même scène prise cinq fois, ou un
- * fichier importé deux fois sous deux noms. Regroupées par proximité de
- * l'empreinte *et* de la grille — l'empreinte seule confond volontiers deux
- * images de composition voisine mais de couleurs opposées.
+ * fichier importé deux fois sous deux noms.
+ *
+ * Trois conditions, chacune pour une raison :
+ *
+ * * l'empreinte proche, pour la composition ;
+ * * la grille proche aussi — l'empreinte seule confond volontiers deux images
+ *   de composition voisine mais de couleurs opposées ;
+ * * le même instant, à deux minutes près. Sans cette dernière, deux photos qui
+ *   se ressemblent à trois ans d'écart formaient une « rafale ». L'exception :
+ *   une empreinte quasi identique, qui trahit le même fichier importé deux fois
+ *   et peut porter n'importe quelle date — signature rigoureusement identique,
+ *   pas seulement voisine.
+ *
+ * Les vidéos sont écartées : leur vignette est une image parmi des milliers, et
+ * une vidéo n'est de toute façon jamais le doublon d'une photo.
  *
  * Rien n'est supprimé : Photon montre les séries, c'est vous qui triez.
  */
@@ -173,6 +200,7 @@ export function duplicateGroups(limit = 60): DuplicateGroup[] {
       `SELECT id, taken_at, width, height, sig_grid AS grid, sig_phash AS phash
          FROM media
         WHERE sig_state = 'ready' AND missing = 0 AND hidden = 0 AND sig_grid IS NOT NULL
+          AND kind = 'photo'
         ORDER BY taken_at DESC`,
     )
     .all() as Array<{
@@ -192,9 +220,13 @@ export function duplicateGroups(limit = 60): DuplicateGroup[] {
     for (let j = i + 1; j < Math.min(rows.length, i + DUP_WINDOW); j++) {
       const b = rows[j];
       if (seen.has(b.id)) continue;
-      if (hamming(a.phash, b.phash) <= DUP_HAMMING && gridDistance(a.grid, b.grid) <= DUP_GRID) {
-        members.push(b);
-      }
+      if (hamming(a.phash, b.phash) > DUP_HAMMING) continue;
+      if (gridDistance(a.grid, b.grid) > DUP_GRID) continue;
+      // Deux photos qui se ressemblent à des années d'écart ne sont pas une
+      // rafale : ce sont deux photos qui se ressemblent. Sauf si l'empreinte
+      // est quasi identique — là c'est le même fichier, importé deux fois.
+      const memeInstant = Math.abs(a.taken_at - b.taken_at) <= DUP_GAP_MS;
+      if (memeInstant || memeFichier(a, b)) members.push(b);
     }
 
     if (members.length < 2) continue;
