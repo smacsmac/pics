@@ -10,6 +10,9 @@ déplacés, copiés ni supprimés — Photon se contente de les lire là où ils
 
 ## Démarrer
 
+En cas de doute à n'importe quel moment, `docteur.bat` (ou `npm run docteur`)
+dresse le bilan et dit quoi faire — voir *Le bilan de santé* plus bas.
+
 **Windows** — double-cliquez sur `start.bat`. La première fois, il installe les
 dépendances et construit l'interface (une minute environ), puis ouvre le
 navigateur.
@@ -705,6 +708,68 @@ Aucun fichier n'est écrit.
 npm run dev        # serveur + interface avec rechargement à chaud
 npm run typecheck  # vérification TypeScript des deux côtés
 ```
+
+## Le bilan de santé
+
+**Double-cliquez sur `docteur.bat`** (ou `./docteur.sh` sous Linux), ou tapez :
+
+    npm run docteur
+
+Il vérifie tout en quelques secondes et dit, en clair, ce qui manque et quoi
+faire : Node.js, les modules natifs, ffmpeg, l'interface construite, le dossier
+de données, la base, vos dossiers de photos, les vignettes, la recherche
+visuelle, le modèle de description, et le port.
+
+```
+  [ ok ] Node.js                    version 22.22.2
+  [ ok ] Base de donnees            better-sqlite3 se charge et repond
+  [ ok ] Videos (ffmpeg)            76.1 Mo - ffmpeg-static
+  [ XX ] Dossiers de photos         1 sur 2 introuvable(s)
+         D:\Photos  (photos)
+         Rebranchez le disque, ou corrigez le chemin dans Parametres > Dossiers.
+```
+
+Trois marques : `[ ok ]` tout va bien, `[ !  ]` ça marche mais quelque chose est
+facultatif ou en attente, `[ XX ]` il faut agir avant que Photon démarre.
+
+Le rapport n'a **aucun accent**, volontairement : la console de Windows les
+affiche de travers selon sa page de codes, et un diagnostic illisible ne sert à
+rien.
+
+C'est le premier réflexe quand quelque chose cloche — avant de chercher dans
+cette page.
+
+### npm bloque les scripts d'installation
+
+Depuis npm 11, l'installation d'un paquet n'exécute plus son script
+automatiquement. Vous verrez alors :
+
+    npm warn install-scripts 4 packages had install scripts blocked
+
+Quatre paquets de Photon en ont besoin, parce qu'ils compilent ou téléchargent
+un binaire natif :
+
+| Paquet | Sans son script |
+|---|---|
+| `better-sqlite3` | **Photon ne démarre pas** — pas de base de données |
+| `esbuild` | `npm run build` échoue — pas d'interface |
+| `ffmpeg-static` | pas de vignettes vidéo ni de conversion HEVC |
+| `onnxruntime-node` | pas de recherche par description |
+
+Pour les autoriser :
+
+    npm install-scripts approve better-sqlite3
+    npm install-scripts approve esbuild
+    npm install-scripts approve ffmpeg-static
+    npm install-scripts approve onnxruntime-node
+    npm install
+
+Le dernier `npm install` est nécessaire : approuver ne relance pas les scripts
+déjà sautés. Puis `npm run docteur` pour confirmer.
+
+Ce blocage est une protection, et c'est une bonne chose. Ces quatre-là sont
+l'exception justifiée : aucun paquet de JavaScript pur n'a besoin de compiler
+quoi que ce soit. Vous n'avez rien d'autre à approuver pour Photon.
 
 ## Si ça ne démarre pas
 

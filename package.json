@@ -16,7 +16,8 @@
     "test:clip": "tsx scripts/test-clip-tokenizer.ts",
     "test:clip-image": "tsx scripts/test-clip-image.ts",
     "test:clip-search": "tsx scripts/test-clip-search.ts",
-    "test:clip-model": "tsx scripts/test-clip-model.ts"
+    "test:clip-model": "tsx scripts/test-clip-model.ts",
+    "docteur": "tsx scripts/docteur.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.0.2",
