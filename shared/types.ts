@@ -44,7 +44,11 @@ export interface Album {
   coverMediaId: number | null;
   /** Épinglé : l'album passe en tête de la grille, avant le tri courant. */
   pinned: boolean;
-  kind: 'user' | 'favorites';
+  /**
+   * `favorites` et `recent` sont automatiques : leur nom vient des traductions,
+   * on ne les supprime pas, et on n'y range pas de photo à la main.
+   */
+  kind: 'user' | 'favorites' | 'recent';
   count: number;
   tags: string[];
   createdAt: number;

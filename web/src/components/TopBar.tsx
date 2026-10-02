@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { Album } from '../../../shared/types';
+import { albumLabel } from '../lib/albums';
 import { useStore } from '../lib/store';
 import {
   IconAlbum, IconGear, IconHeart, IconHome, IconPlus, IconSearch, IconSparkle, IconUpload,
@@ -133,9 +134,9 @@ export function TopBar({
               }}
               onClick={() => onActivate(slot)}
               onMouseEnter={() => onHover(slot)}
-              title={album.name}
+              title={albumLabel(album, t)}
             >
-              <span className="n">{album.name}</span>
+              <span className="n">{albumLabel(album, t)}</span>
               <span className="c">{t.photoCount(album.count)}</span>
             </button>
           );

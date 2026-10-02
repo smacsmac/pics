@@ -181,7 +181,15 @@ export async function fileIntoLibrary(
   const hash = await hashFile(tempFile);
   if (isKnownHash(hash)) {
     await fs.promises.rm(tempFile, { force: true });
-    return { name, outcome: 'duplicate' };
+    // On rend quand même l'endroit où le fichier avait été rangé. Il n'est pas
+    // réimporté — c'est tout l'intérêt du registre — mais un envoi qui demande
+    // un album doit pouvoir y mettre les photos déjà connues : qui sélectionne
+    // trente photos d'un voyage les veut toutes dans l'album, pas seulement les
+    // quatre que Photon n'avait pas encore.
+    const seen = db.prepare(`SELECT stored_at FROM imported WHERE hash = ?`).get(hash) as
+      | { stored_at: string | null }
+      | undefined;
+    return { name, outcome: 'duplicate', storedAt: seen?.stored_at ?? undefined };
   }
 
   const when = await captureDate(tempFile, name, mtime);
@@ -200,6 +208,81 @@ export async function fileIntoLibrary(
 
   recordImport({ hash, filename: name, bytes: (await fs.promises.stat(dest)).size, storedAt: dest });
   return { name, outcome: 'stored', storedAt: dest };
+}
+
+// ------------------------------------------- album demandé pendant un envoi
+
+/**
+ * Au-delà de ce délai, une photo promise à un album ne l'attend plus.
+ *
+ * Une attente ne se résout que si le scan retrouve le fichier. Si quelqu'un le
+ * supprime du PC avant — ce qui est son droit, et Photon n'y touche pas — la
+ * ligne resterait là pour toujours. Une semaine laisse largement le temps à
+ * plusieurs scans de passer.
+ */
+const PENDING_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * L'album où ranger un envoi, créé au besoin.
+ *
+ * Un nom déjà pris est réutilisé plutôt que dupliqué : envoyer vingt photos
+ * aujourd'hui et trente demain sous le même titre doit donner un album de
+ * cinquante photos, pas deux albums homonymes qu'il faudra fusionner à la main.
+ * Seuls les albums ordinaires sont candidats — on ne verse pas un envoi dans
+ * « Favoris » ni dans « Cette semaine ».
+ */
+export function albumForUpload(rawName: string, hue: number): number | null {
+  const name = rawName.trim().slice(0, 120);
+  if (!name) return null;
+
+  const existing = db
+    .prepare(`SELECT id FROM albums WHERE kind = 'user' AND name = ? COLLATE NOCASE LIMIT 1`)
+    .get(name) as { id: number } | undefined;
+  if (existing) return existing.id;
+
+  const now = Date.now();
+  const info = db
+    .prepare(
+      `INSERT INTO albums (name, color, music_slot, video_music_pct, background,
+                           background_opacity, kind, created_at, updated_at)
+       VALUES (?, ?, NULL, 20, NULL, 35, 'user', ?, ?)`,
+    )
+    .run(name, Math.round(hue), now, now);
+  return Number(info.lastInsertRowid);
+}
+
+/** Note qu'un fichier rangé devra rejoindre un album, dès qu'il sera indexé. */
+export function rememberForAlbum(albumId: number, storedAt: string): void {
+  db.prepare(
+    `INSERT INTO album_pending (path, album_id, added_at) VALUES (?, ?, ?)
+     ON CONFLICT(path) DO UPDATE SET album_id = excluded.album_id`,
+  ).run(storedAt, albumId, Date.now());
+}
+
+/**
+ * Verse dans leur album les photos en attente que le scan vient d'indexer.
+ *
+ * Appelée à la fin de l'indexation, quand les lignes `media` existent mais
+ * avant les vignettes : l'album est donc complet dès que les photos sont
+ * visibles, sans attendre la fin du traitement d'images.
+ */
+export function linkPendingAlbums(): number {
+  const linked = db.transaction(() => {
+    const info = db
+      .prepare(
+        `INSERT OR IGNORE INTO album_media (album_id, media_id, added_at)
+         SELECT p.album_id, m.id, p.added_at
+           FROM album_pending p JOIN media m ON m.path = p.path`,
+      )
+      .run();
+
+    // Résolues ou périmées, on ne garde que ce qui peut encore aboutir.
+    db.prepare(`DELETE FROM album_pending WHERE path IN (SELECT path FROM media)`).run();
+    db.prepare(`DELETE FROM album_pending WHERE added_at < ?`).run(Date.now() - PENDING_MAX_AGE_MS);
+
+    return info.changes;
+  });
+  return linked();
 }
 
 /**

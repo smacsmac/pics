@@ -162,6 +162,30 @@ L'envoi est ouvert à tout le réseau local par défaut — c'est l'intérêt, q
 famille puisse envoyer sans mot de passe. Une bascule dans la gestion des
 dossiers permet de le réserver à l'admin.
 
+### Les mettre dans un album au passage
+
+Cochez **Les mettre dans un album**, tapez un titre, et l'envoi se range tout
+seul dans un album portant ce nom.
+
+Deux champs, et c'est tout : pas de couleur, pas de musique, pas d'arrière-plan.
+On règle ça plus tard et plus confortablement dans l'album lui-même — l'écran
+d'envoi, souvent utilisé debout sur un téléphone, doit rester une case et une
+boîte de texte.
+
+Trois choses à savoir :
+
+* **Un titre déjà pris réutilise l'album** au lieu d'en créer un second du même
+  nom. Envoyer vingt photos aujourd'hui et trente demain sous « Vacances »
+  donne un album de cinquante photos.
+* **La sélection entière entre dans l'album**, pas seulement les nouveautés. Si
+  vous sélectionnez trente photos dont vingt-six sont déjà sur le PC, l'album en
+  contient trente. C'est le but : on choisit les photos d'un voyage, pas
+  « celles que Photon n'a pas encore ».
+* **Les nouvelles photos arrivent avec un léger décalage.** Un envoi dépose les
+  fichiers ; c'est le scan qui les inscrit dans la bibliothèque ensuite, et
+  l'album ne peut les accueillir qu'à ce moment-là. Quelques secondes, le temps
+  que le PC les parcoure. L'écran le dit.
+
 ### Une photo supprimée ne revient jamais
 
 Photon garde l'empreinte de chaque fichier reçu, même après que le fichier a
@@ -218,6 +242,27 @@ donne trois colonnes au lieu de deux, sans quoi l'écran serait à moitié vide.
 
 Créez, renommez, changez la couleur ou la musique, supprimez l'album — les
 photos, elles, restent dans la bibliothèque.
+
+### Les deux albums qui se remplissent tout seuls
+
+**Favoris** et **Cette semaine** ne se créent pas et ne se suppriment pas. Ils
+ouvrent la grille, dans cet ordre, quel que soit le tri choisi : ce sont des
+points de repère, et on doit les retrouver au même endroit.
+
+**Cette semaine** rassemble tout ce qui a rejoint la bibliothèque depuis sept
+jours. Sept jours glissants, pas la semaine civile — un album qui se viderait
+tous les lundis matin serait déroutant, et ce qu'on cherche en l'ouvrant c'est
+« ce que je viens d'ajouter ».
+
+Il se fonde sur la date d'**ajout**, pas sur la date de prise de vue, et c'est
+tout l'intérêt : des photos de vacances d'il y a dix ans, versées hier depuis un
+vieux disque, y apparaissent — alors qu'elles sont introuvables en haut de la
+chronologie, qui les range en 2016.
+
+Il ne contient rien en propre : c'est une question posée à la bibliothèque au
+moment où on l'ouvre. D'où trois conséquences : son nom suit la langue de
+l'interface, on ne peut pas y ranger une photo à la main, et les photos en
+sortent d'elles-mêmes au bout d'une semaine sans que rien ne soit supprimé.
 
 ### Ranger la grille d'albums
 
@@ -698,6 +743,7 @@ Ajoutez ce dossier dans les réglages pour voir l'application remplie.
 ### Vérifier ce qui est vérifiable
 
     npm run test:vision        signatures, ambiances, empreintes, ressemblances
+    npm run test:upload-album  album à l'envoi, et « cette semaine »
     npm run test:clip-search   rangement et classement des vecteurs
     npm run test:clip -- clip-fixtures        tokenizer, face à OpenAI
     npm run test:clip-image -- clip-fixtures  images, face à PyTorch
@@ -707,11 +753,16 @@ Les deux avec `clip-fixtures` demandent des fichiers de référence à produire 
 fois ; voir `clip-fixtures/LISEZMOI.md`.
 
 `test:vision` fabrique des images dont on connaît la couleur et la composition,
+les signe, et vérifie que les mesures, les ambiances, les empreintes et les
+ressemblances tombent juste. Il confronte aussi les règles SQL des ambiances à
+leur équivalent JavaScript sur 32 000 tirages. Aucun fichier n'est écrit.
 
-Fabrique des images dont on connaît la couleur et la composition, les signe, et vérifie que les mesures, les
-ambiances, les empreintes et les ressemblances tombent juste. Il confronte aussi
-les règles SQL des ambiances à leur équivalent JavaScript sur 32 000 tirages.
-Aucun fichier n'est écrit.
+`test:upload-album` lance un vrai serveur sur un dossier de données jetable,
+envoie de vraies images par HTTP et relit tout par l'API — c'est la seule façon
+de couvrir le point délicat, à savoir qu'un envoi ne crée aucune ligne dans la
+bibliothèque et que l'album se remplit plus tard, au scan. Il vérifie aussi, en
+comparant l'empreinte de chaque fichier avant et après, qu'aucune photo n'a
+disparu, bougé ni changé.
 
 ### Développement
 

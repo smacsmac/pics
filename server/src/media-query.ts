@@ -1,7 +1,7 @@
 import type {
   Chapter, DuplicateGroup, HistogramBucket, Lang, MediaItem, MediaPage, Mood, OnThisDay,
 } from '../../shared/types.js';
-import { db, FAVORITES_ID } from './db.js';
+import { db, FAVORITES_ID, RECENT_ID, RECENT_WINDOW_MS } from './db.js';
 import { formatPlace } from './geocode.js';
 import { gridDistance, hamming, moodSql, similarity } from './vision.js';
 
@@ -65,7 +65,12 @@ function buildWhere(f: Filters): { sql: string; params: unknown[]; joins: string
     where.push('m.place_city = ?');
     params.push(f.place);
   }
-  if (f.album !== undefined) {
+  if (f.album === RECENT_ID) {
+    // « Cette semaine » ne contient rien : c'est une question sur la date
+    // d'ajout, posée à l'instant où on l'ouvre.
+    where.push('m.added_at >= ?');
+    params.push(Date.now() - RECENT_WINDOW_MS);
+  } else if (f.album !== undefined) {
     joins += ' JOIN album_media am ON am.media_id = m.id AND am.album_id = ?';
     params.unshift(f.album); // le paramètre du JOIN passe avant ceux du WHERE
   }

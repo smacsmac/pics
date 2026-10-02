@@ -5,13 +5,16 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Album, AlbumSort, AppState, Mood, Root, UploadResult } from '../../shared/types.js';
 import { MOODS } from '../../shared/types.js';
 import {
-  drainInbox, ensureTempDir, fileIntoLibrary, importRoot, isKnownNameSize, safeName, TEMP_DIR,
+  albumForUpload, drainInbox, ensureTempDir, fileIntoLibrary, importRoot, isKnownNameSize,
+  linkPendingAlbums, rememberForAlbum, safeName, TEMP_DIR,
 } from './import.js';
 import {
   ADMIN_COOKIE, createSession, destroySession, hasSession, isAdmin, isChildMode, isPasswordSet,
   requireAdmin, setChildMode, setPassword, verifyPassword,
 } from './auth.js';
-import { db, FAVORITES_ID, pruneOrphanTags, tagId } from './db.js';
+import {
+  db, FAVORITES_ID, pruneOrphanTags, RECENT_ID, RECENT_WINDOW_MS, tagId,
+} from './db.js';
 import {
   chapters, dateBounds, distinctPlaces, duplicateGroups, getMedia, getMediaByIds, histogram,
   onThisDay, queryMedia, randomFavorite, type Filters,
@@ -110,9 +113,14 @@ function sortAlbums(albums: Album[], order: AlbumSort): Album[] {
     return b.updatedAt - a.updatedAt;
   };
 
-  // Les favoris d'abord, puis les épinglés, puis le tri demandé.
+  // Les deux albums automatiques d'abord — favoris, puis « cette semaine » —
+  // ensuite les épinglés, enfin le tri demandé. Ils gardent leur place quel
+  // que soit le tri : ce sont des points de repère, pas des albums parmi
+  // d'autres, et on doit pouvoir les retrouver au même endroit.
+  const rank = (a: Album): number => (a.kind === 'favorites' ? 0 : a.kind === 'recent' ? 1 : 2);
+
   return [...albums].sort((a, b) => {
-    if ((a.kind === 'favorites') !== (b.kind === 'favorites')) return a.kind === 'favorites' ? -1 : 1;
+    if (rank(a) !== rank(b)) return rank(a) - rank(b);
     if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
     return compare(a, b);
   });
@@ -157,6 +165,27 @@ function albumRows(): Album[] {
     pinned: a.pinned === 1,
     tags: byAlbum.get(a.id) ?? [],
   }));
+
+  // « Cette semaine » n'a pas de contenu propre : son compte et sa couverture
+  // se lisent sur la date d'ajout, pas dans `album_media`, qui est vide pour
+  // lui. Sans ce rattrapage il s'afficherait éternellement à zéro photo.
+  const recent = albums.find((a) => a.kind === 'recent');
+  if (recent) {
+    const since = Date.now() - RECENT_WINDOW_MS;
+    const row = db
+      .prepare(
+        `SELECT COUNT(*) AS n,
+                (SELECT id FROM media
+                  WHERE added_at >= ? AND missing = 0 AND hidden = 0
+                  ORDER BY added_at DESC, id DESC LIMIT 1) AS cover
+           FROM media
+          WHERE added_at >= ? AND missing = 0 AND hidden = 0`,
+      )
+      .get(since, since) as { n: number; cover: number | null };
+    recent.count = row.n;
+    recent.coverMediaId = row.cover;
+  }
+
   return sortAlbums(albums, getSettings().albumSort);
 }
 
@@ -643,8 +672,9 @@ export function registerRoutes(app: FastifyInstance, onRootsChanged: () => void 
 
     const sets: string[] = [];
     const params: unknown[] = [];
-    // Le nom de l'album favoris est fourni par les traductions, on ne le stocke pas.
-    if (body.name !== undefined && album.kind !== 'favorites' && body.name.trim()) {
+    // Le nom des deux albums automatiques est fourni par les traductions, on ne
+    // le stocke pas : il doit suivre la langue de l'interface.
+    if (body.name !== undefined && album.kind === 'user' && body.name.trim()) {
       sets.push('name = ?');
       params.push(body.name.trim());
     }
@@ -698,6 +728,7 @@ export function registerRoutes(app: FastifyInstance, onRootsChanged: () => void 
     if (!requireAdmin(req, reply)) return;
     const id = Number((req.params as { id: string }).id);
     if (id === FAVORITES_ID) return reply.code(400).send({ error: 'cannot_delete_favorites' });
+    if (id === RECENT_ID) return reply.code(400).send({ error: 'cannot_delete_recent' });
     db.prepare(`DELETE FROM albums WHERE id = ?`).run(id);
     pruneOrphanTags();
     return { deleted: id };
@@ -709,6 +740,10 @@ export function registerRoutes(app: FastifyInstance, onRootsChanged: () => void 
     const body = req.body as { ids?: number[]; remove?: boolean };
     const ids = (body.ids ?? []).filter((n) => Number.isFinite(n));
     if (ids.length === 0) return { changed: 0 };
+    // « Cette semaine » se remplit tout seul. Y ranger une photo à la main
+    // écrirait une ligne que personne ne lit jamais : l'album ne consulte que
+    // la date d'ajout. Mieux vaut refuser clairement que faire semblant.
+    if (id === RECENT_ID) return reply.code(400).send({ error: 'album_is_automatic' });
 
     const run = db.transaction(() => {
       if (body.remove) {
@@ -964,12 +999,67 @@ export function registerRoutes(app: FastifyInstance, onRootsChanged: () => void 
     };
   });
 
+  /**
+   * Prépare l'album d'un envoi, et y range tout de suite ce que Photon connaît
+   * déjà.
+   *
+   * Sans cette route, un album créé pendant un envoi serait presque vide : le
+   * téléphone n'envoie que les fichiers inconnus — c'est tout l'intérêt — donc
+   * les photos déjà reçues n'atteindraient jamais le serveur et ne pourraient
+   * pas rejoindre l'album. Or qui sélectionne trente photos d'un voyage les
+   * veut toutes dedans, pas seulement les quatre qui manquaient.
+   *
+   * Même autorisation que l'envoi lui-même : qui peut envoyer des photos peut
+   * nommer l'album où elles vont. Rien n'est supprimé ni déplacé ici.
+   */
+  app.post('/api/albums/from-upload', async (req, reply) => {
+    if (getSettings().uploadRequiresAdmin && !requireAdmin(req, reply)) return;
+    const body = req.body as { name?: string; files?: Array<{ name: string; size: number }> };
+    const albumId = albumForUpload(String(body.name ?? ''), getSettings().hue);
+    if (albumId === null) return reply.code(400).send({ error: 'name_required' });
+
+    // Même identité que celle qui sert à écarter les doublons d'un envoi : le
+    // nom du fichier et sa taille. Un fichier absent de la bibliothèque ne
+    // correspond à rien et sera simplement rangé par l'envoi qui suit.
+    const find = db.prepare(`SELECT id FROM media WHERE filename = ? AND bytes = ?`);
+    const link = db.prepare(
+      `INSERT OR IGNORE INTO album_media (album_id, media_id, added_at) VALUES (?, ?, ?)`,
+    );
+    const now = Date.now();
+    const run = db.transaction(() => {
+      let linked = 0;
+      for (const file of body.files ?? []) {
+        const row = find.get(safeName(String(file.name ?? '')), Number(file.size) || 0) as
+          | { id: number }
+          | undefined;
+        if (row) linked += link.run(albumId, row.id, now).changes;
+      }
+      db.prepare(`UPDATE albums SET updated_at = ? WHERE id = ?`).run(now, albumId);
+      return linked;
+    });
+    const linked = run();
+    return { albumId, linked, albums: albumRows() };
+  });
+
   app.post('/api/upload', async (req, reply) => {
     if (getSettings().uploadRequiresAdmin && !requireAdmin(req, reply)) return;
     if (!importRoot()) return reply.code(400).send({ error: 'no_import_folder' });
 
     ensureTempDir();
     const results: UploadResult[] = [];
+
+    /**
+     * Album demandé par l'envoyeur. Il n'est créé qu'au premier fichier
+     * réellement rangé : renvoyer un lot entièrement connu ne doit pas laisser
+     * derrière lui un album vide.
+     */
+    const albumName = String((req.query as { album?: string }).album ?? '');
+    let albumId: number | null = null;
+    const intoAlbum = (storedAt: string | undefined): void => {
+      if (!albumName.trim() || !storedAt) return;
+      albumId ??= albumForUpload(albumName, getSettings().hue);
+      if (albumId !== null) rememberForAlbum(albumId, storedAt);
+    };
 
     for await (const part of req.parts()) {
       if (part.type !== 'file') continue;
@@ -989,11 +1079,17 @@ export function registerRoutes(app: FastifyInstance, onRootsChanged: () => void 
       const stamp = Number((req.query as { mtime?: string }).mtime);
       const mtime = Number.isFinite(stamp) && stamp > 0 ? new Date(stamp) : new Date();
       const result = await fileIntoLibrary(temp, part.filename ?? 'photo', mtime);
+      intoAlbum(result.storedAt);
       results.push({ name: result.name, outcome: result.outcome });
     }
 
+    // Les photos déjà indexées — celles que le registre connaissait — rejoignent
+    // l'album tout de suite. Les nouvelles attendent le scan, qui seul peut leur
+    // donner un identifiant. Sans cet appel, un envoi entièrement composé de
+    // photos déjà connues ne déclencherait aucun scan, et l'album resterait vide.
+    if (albumId !== null) linkPendingAlbums();
     if (results.some((r) => r.outcome === 'stored')) void scan();
-    return { results };
+    return { results, albumId };
   });
 
   app.post('/api/inbox/drain', async () => {

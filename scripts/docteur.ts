@@ -81,8 +81,9 @@ if (!fs.existsSync(path.join(racine, 'node_modules'))) {
   } catch (err) {
     dire('probleme', 'Base de donnees', abrege(err),
       'Le module natif manque ou ne correspond pas a votre version de Node.\n' +
-      '       npm install-scripts approve better-sqlite3\n' +
-      '       npm install');
+      '       npm install\n' +
+      '       Si npm annonce des scripts bloques, voir le README :\n' +
+      '       le champ allowScripts du package.json doit etre intact.');
   }
 
   try {
@@ -117,7 +118,6 @@ if (!fs.existsSync(path.join(racine, 'node_modules'))) {
       dire('attention', 'Videos (ffmpeg)', 'introuvable',
         'Les vignettes de videos et la lecture des videos de telephone ne\n' +
         '       marcheront pas. Le reste fonctionne.\n' +
-        '       npm install-scripts approve ffmpeg-static\n' +
         '       npm install');
     }
   }
@@ -132,8 +132,7 @@ if (!fs.existsSync(path.join(racine, 'node_modules'))) {
     dire('ok', 'Interface construite', `web/dist, ${actifs} fichiers`);
   } else {
     dire('probleme', 'Interface construite', 'web/dist est absent',
-      'Lancez : npm run build\n' +
-      '       Si la construction echoue : npm install-scripts approve esbuild');
+      'Lancez : npm run build');
   }
 }
 
@@ -180,8 +179,6 @@ if (!fs.existsSync(path.join(racine, 'node_modules'))) {
     dire('attention', 'Recherche par description', 'onnxruntime-node absent',
       'Facultatif. Pour l\'activer :\n' +
       '       npm install onnxruntime-node\n' +
-      '       npm install-scripts approve onnxruntime-node\n' +
-      '       npm install\n' +
       '       puis Parametres > Recherche par description > Telecharger le modele');
   } else if (taille(modele) < 1024 * 1024 || taille(vocab) < 1024) {
     dire('attention', 'Recherche par description', 'moteur pret, modele absent',

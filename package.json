@@ -17,6 +17,7 @@
     "test:clip-image": "tsx scripts/test-clip-image.ts",
     "test:clip-search": "tsx scripts/test-clip-search.ts",
     "test:clip-model": "tsx scripts/test-clip-model.ts",
+    "test:upload-album": "tsx scripts/test-upload-album.ts",
     "docteur": "tsx scripts/docteur.ts"
   },
   "dependencies": {

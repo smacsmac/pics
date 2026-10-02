@@ -98,6 +98,20 @@ CREATE TABLE IF NOT EXISTS imported (
   imported_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_imported_name ON imported(filename, bytes);
+
+-- Photos envoyées avec un nom d'album, en attente d'être indexées.
+--
+-- Un envoi ne produit pas de ligne dans la table media : il dépose le fichier
+-- dans le dossier du mois, et c'est le scan qui l'indexe ensuite. Il n'existe
+-- aucun identifiant à mettre dans l'album au moment où le téléphone termine
+-- son envoi. On note le chemin du fichier rangé, et le scan fait le lien dès
+-- qu'il connaît la photo. Le téléphone peut se déconnecter entre-temps :
+-- l'album se remplira quand même.
+CREATE TABLE IF NOT EXISTS album_pending (
+  path     TEXT PRIMARY KEY,
+  album_id INTEGER NOT NULL REFERENCES albums(id) ON DELETE CASCADE,
+  added_at INTEGER NOT NULL
+);
 `);
 
 /**
@@ -172,6 +186,42 @@ export function ensureFavoritesAlbum(): number {
 }
 
 export const FAVORITES_ID = ensureFavoritesAlbum();
+
+/**
+ * Fenêtre de l'album « cette semaine » : sept jours glissants.
+ *
+ * Glissants, et non la semaine civile : un album qui se viderait tous les
+ * lundis matin serait déroutant, et ce qu'on cherche en l'ouvrant c'est « ce
+ * que je viens d'ajouter », pas « ce que j'ai ajouté depuis lundi ».
+ */
+export const RECENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * L'album « cette semaine » se remplit tout seul : il ne contient aucune ligne
+ * dans `album_media`, c'est une question posée à `media.added_at` au moment où
+ * on l'ouvre.
+ *
+ * Il se fonde sur la date d'ajout, pas sur la date de prise de vue — c'est
+ * tout l'intérêt : des photos de vacances d'il y a dix ans qu'on vient de
+ * verser depuis un vieux disque y apparaissent, alors qu'elles sont introuvables
+ * en haut de la chronologie.
+ */
+export function ensureRecentAlbum(): number {
+  const existing = db.prepare(`SELECT id FROM albums WHERE kind = 'recent'`).get() as
+    | { id: number }
+    | undefined;
+  if (existing) return existing.id;
+  const now = Date.now();
+  const info = db
+    .prepare(
+      `INSERT INTO albums (name, color, kind, created_at, updated_at)
+       VALUES ('Recently added', 190, 'recent', ?, ?)`,
+    )
+    .run(now, now);
+  return Number(info.lastInsertRowid);
+}
+
+export const RECENT_ID = ensureRecentAlbum();
 
 export function getSetting<T>(key: string, fallback: T): T {
   const row = db.prepare(`SELECT value FROM settings WHERE key = ?`).get(key) as

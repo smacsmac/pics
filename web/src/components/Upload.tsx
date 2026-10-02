@@ -3,7 +3,7 @@ import { api, ApiError } from '../lib/api';
 import { formatBytes } from '../lib/format';
 import { useInput } from '../lib/input';
 import { useStore } from '../lib/store';
-import { IconCheck, IconUpload, IconX } from './Icons';
+import { IconAlbum, IconCheck, IconUpload, IconX } from './Icons';
 
 interface Progress {
   total: number;
@@ -40,7 +40,7 @@ type Phase = 'idle' | 'preparing' | 'sending';
  * connu, pour ne transférer que le nouveau.
  */
 export function UploadSheet(): React.JSX.Element | null {
-  const { sheet, setSheet, state, refresh, t, toast } = useStore();
+  const { sheet, setSheet, state, refresh, t, toast, setOsk } = useStore();
   const open = sheet?.kind === 'upload';
   const inputRef = useRef<HTMLInputElement | null>(null);
   const abort = useRef<AbortController | null>(null);
@@ -48,7 +48,16 @@ export function UploadSheet(): React.JSX.Element | null {
   const [picked, setPicked] = useState(0);
   const [progress, setProgress] = useState<Progress>(EMPTY);
   const [summary, setSummary] = useState<Progress | null>(null);
+  /** Album de l'envoi qui vient de finir, pour le rappeler dans le bilan. */
+  const [doneAlbum, setDoneAlbum] = useState<string | null>(null);
+  // Album demandé pour cet envoi. Volontairement réduit à deux champs : on règle
+  // la couleur, la musique et le reste plus tard, dans l'écran d'album.
+  const [makeAlbum, setMakeAlbum] = useState(false);
+  const [albumName, setAlbumName] = useState('');
+  // Rangée visée à la manette : 0 = créer un album, 1 = le titre, 2 = choisir.
+  const [focus, setFocus] = useState(0);
   const busy = phase !== 'idle';
+  const album = makeAlbum ? albumName.trim() : '';
 
   const hasFolder = (state?.roots ?? []).some((r) => r.kind === 'import');
   const importRoot = (state?.roots ?? []).find((r) => r.kind === 'import');
@@ -59,6 +68,10 @@ export function UploadSheet(): React.JSX.Element | null {
       setSummary(null);
       setPhase('idle');
       setPicked(0);
+      setMakeAlbum(false);
+      setAlbumName('');
+      setDoneAlbum(null);
+      setFocus(0);
     }
   }, [open]);
 
@@ -71,13 +84,27 @@ export function UploadSheet(): React.JSX.Element | null {
   }, [busy]);
 
   const send = useCallback(
-    async (files: File[]) => {
+    async (files: File[], albumTarget: string) => {
       if (files.length === 0) {
         setPhase('idle');
         return;
       }
       setSummary(null);
       abort.current = new AbortController();
+
+      // L'album est préparé avant le premier octet, avec la sélection entière :
+      // les photos déjà reçues n'étant pas renvoyées, c'est le seul moment où
+      // le serveur les voit passer et peut les y ranger.
+      if (albumTarget) {
+        try {
+          await api.albumFromUpload(
+            albumTarget,
+            files.map((f) => ({ name: f.name, size: f.size })),
+          );
+        } catch {
+          /* l'album échoue, l'envoi continue : les photos comptent plus que lui */
+        }
+      }
 
       // On demande d'abord ce que le serveur connaît déjà : inutile de faire
       // remonter par le Wi-Fi une photo qu'il a rangée le mois dernier.
@@ -112,6 +139,7 @@ export function UploadSheet(): React.JSX.Element | null {
               setProgress({ ...run });
             },
             abort.current?.signal,
+            albumTarget,
           );
           if (result.outcome === 'stored') run.done++;
           else if (result.outcome === 'duplicate') run.skipped++;
@@ -127,6 +155,7 @@ export function UploadSheet(): React.JSX.Element | null {
 
       setPhase('idle');
       setSummary({ ...run, currentName: '' });
+      setDoneAlbum(albumTarget || null);
       abort.current = null;
       await refresh();
       if (run.done > 0) toast(t.uploadDone(run.done));
@@ -134,18 +163,70 @@ export function UploadSheet(): React.JSX.Element | null {
     [refresh, t, toast],
   );
 
+  const pick = useCallback(() => {
+    if (makeAlbum && albumName.trim() === '') {
+      // Une case cochée sans titre créerait un album sans nom. On va chercher
+      // le titre plutôt que de refuser en silence.
+      setFocus(1);
+      setOsk({ label: t.albumTitle, value: albumName, onCommit: setAlbumName });
+      return;
+    }
+    inputRef.current?.click();
+  }, [makeAlbum, albumName, setOsk, t.albumTitle]);
+
+  /**
+   * Les rangées atteignables à la manette. Le titre ne compte que si la case
+   * est cochée : une rangée masquée mais comptée laisserait un cran mort sous
+   * la croix directionnelle — on s'est déjà fait prendre ailleurs.
+   */
+  const rows = makeAlbum ? 3 : 2;
+  const titleRow = 1;
+  const pickRow = makeAlbum ? 2 : 1;
+
   useInput(
     useCallback(
       (action) => {
         if (!open) return false;
-        if (action === 'back' && !busy) setSheet(null);
-        if (action === 'confirm' && !busy) inputRef.current?.click();
+        if (busy) {
+          // En plein envoi, seul B compte, et il annule — c'est le bouton
+          // « Annuler » affiché à l'écran, pas une sortie discrète.
+          if (action === 'back') abort.current?.abort();
+          return true;
+        }
+        switch (action) {
+          case 'back':
+            setSheet(null);
+            break;
+          case 'up':
+            setFocus((f) => Math.max(0, f - 1));
+            break;
+          case 'down':
+            setFocus((f) => Math.min(rows - 1, f + 1));
+            break;
+          case 'confirm':
+            if (focus === 0) {
+              setMakeAlbum((on) => !on);
+            } else if (focus === titleRow && makeAlbum) {
+              setOsk({ label: t.albumTitle, value: albumName, onCommit: setAlbumName });
+            } else if (focus === pickRow) {
+              pick();
+            }
+            break;
+          default:
+            break;
+        }
         return true;
       },
-      [open, busy, setSheet],
+      [open, busy, setSheet, focus, rows, pickRow, makeAlbum, albumName, setOsk, t.albumTitle, pick],
     ),
     open,
   );
+
+  // Décocher la case alors que le titre était visé laisserait le curseur sur une
+  // rangée qui n'existe plus.
+  useEffect(() => {
+    setFocus((f) => Math.min(f, rows - 1));
+  }, [rows]);
 
   if (!open) return null;
 
@@ -176,6 +257,41 @@ export function UploadSheet(): React.JSX.Element | null {
               <div className="mini" style={{ wordBreak: 'break-all' }}>{importRoot.path}</div>
             )}
 
+            {!busy && !summary && (
+              <>
+                <button
+                  className={`panel-row${focus === 0 ? ' on' : ''}`}
+                  style={{ textAlign: 'left' }}
+                  onMouseEnter={() => setFocus(0)}
+                  onClick={() => setMakeAlbum((on) => !on)}
+                >
+                  <div className="row-line">
+                    <IconAlbum />
+                    <span className="lab">{t.uploadMakeAlbum}</span>
+                    <span className={`toggle${makeAlbum ? ' on' : ''}`}>
+                      <span className="knob" />
+                    </span>
+                  </div>
+                </button>
+
+                {makeAlbum && (
+                  <div
+                    className={`field${focus === titleRow ? ' on' : ''}`}
+                    onMouseEnter={() => setFocus(titleRow)}
+                  >
+                    <span className="lab">{t.albumTitle}</span>
+                    <input
+                      className="text-input"
+                      value={albumName}
+                      placeholder={t.albumTitle}
+                      maxLength={120}
+                      onChange={(e) => setAlbumName(e.target.value)}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+
             <input
               ref={inputRef}
               type="file"
@@ -189,7 +305,9 @@ export function UploadSheet(): React.JSX.Element | null {
                 // « Terminé » a été pris en compte, sans attendre le réseau.
                 setPicked(files.length);
                 setPhase(files.length > 0 ? 'preparing' : 'idle');
-                void send(files);
+                // Le titre est figé ici : le champ reste modifiable pendant
+                // l'envoi sans que les photos partent dans deux albums.
+                void send(files, album);
               }}
             />
 
@@ -239,7 +357,20 @@ export function UploadSheet(): React.JSX.Element | null {
                     <span className="c">{summary.failed}</span>
                   </div>
                 )}
+                {doneAlbum && (
+                  <div className="option">
+                    <IconAlbum />
+                    <span className="n">{doneAlbum}</span>
+                  </div>
+                )}
               </div>
+            )}
+
+            {/* Les photos nouvelles rejoignent l'album quand le scan les a
+                indexées, pas à la seconde où l'envoi finit. Le dire évite
+                d'ouvrir un album à moitié vide en croyant à une panne. */}
+            {doneAlbum && summary && summary.done > 0 && (
+              <div className="mini">{t.uploadAlbumPending}</div>
             )}
 
             <div className="form-actions">
@@ -250,7 +381,10 @@ export function UploadSheet(): React.JSX.Element | null {
               ) : (
                 <>
                   <button className="btn" onClick={() => setSheet(null)}>{t.cancel}</button>
-                  <button className="btn primary" onClick={() => inputRef.current?.click()}>
+                  <button
+                    className={`btn primary${focus === pickRow ? ' on' : ''}`}
+                    onClick={pick}
+                  >
                     <IconUpload /> {t.uploadPick}
                   </button>
                 </>

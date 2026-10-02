@@ -85,6 +85,16 @@ export const api = {
 
   backgroundUrl: (name: string) => `/api/background?name=${encodeURIComponent(name)}`,
 
+  /**
+   * Crée l'album d'un envoi et y range ce que Photon connaît déjà. Les
+   * fichiers encore inconnus le rejoindront quand le scan les aura indexés.
+   */
+  albumFromUpload: (name: string, files: Array<{ name: string; size: number }>) =>
+    request<{ albumId: number; linked: number; albums: Album[] }>('/api/albums/from-upload', {
+      method: 'POST',
+      body: JSON.stringify({ name, files }),
+    }),
+
   /** Demande au serveur lesquels de ces fichiers il connaît déjà. */
   uploadCheck: (files: Array<{ name: string; size: number }>) =>
     request<{ known: boolean[]; ready: boolean }>('/api/upload/check', {
@@ -104,13 +114,18 @@ export const api = {
     file: File,
     onProgress: (ratio: number) => void,
     signal?: AbortSignal,
+    /** Titre d'album : le serveur le crée au besoin et y range l'envoi. */
+    album?: string,
   ): Promise<UploadResult> {
     return new Promise((resolve, reject) => {
       const form = new FormData();
       form.append('file', file, file.name);
 
+      const params = new URLSearchParams({ mtime: String(file.lastModified || Date.now()) });
+      if (album && album.trim()) params.set('album', album.trim());
+
       const xhr = new XMLHttpRequest();
-      xhr.open('POST', `/api/upload?mtime=${file.lastModified || Date.now()}`);
+      xhr.open('POST', `/api/upload?${params.toString()}`);
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable) onProgress(e.loaded / e.total);
       };

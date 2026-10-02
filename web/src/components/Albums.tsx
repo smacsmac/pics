@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Album, MediaItem } from '../../../shared/types';
+import { albumLabel, isAutoAlbum } from '../lib/albums';
 import { api } from '../lib/api';
 import { HUES, VOLUME_MAX } from '../lib/panels';
 import { useStore } from '../lib/store';
@@ -56,10 +57,11 @@ export function AlbumsGrid({
           )}
 
           {album.kind === 'favorites' && <span className="fav-tag">★ {t.favorites}</span>}
+          {album.kind === 'recent' && <span className="fav-tag">{t.recentlyAdded}</span>}
 
           {/* Toujours affiché : verrouillé, le clic propose de déverrouiller
               plutôt que de faire disparaître le bouton sans explication. */}
-          {album.kind !== 'favorites' && (
+          {!isAutoAlbum(album) && (
             <button
               className="edit-btn"
               title={t.editAlbum}
@@ -73,7 +75,7 @@ export function AlbumsGrid({
           )}
 
           <div className="meta">
-            <div className="n">{album.kind === 'favorites' ? t.favorites : album.name}</div>
+            <div className="n">{albumLabel(album, t)}</div>
             <div className="c">
               {t.photoCount(album.count)}
               {album.tags.length > 0 && ` · ${album.tags.join(' · ')}`}

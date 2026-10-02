@@ -22,6 +22,7 @@ import { UploadSheet } from './components/Upload';
 import { DateScrubber, Timeline } from './components/Timeline';
 import { TOP, TopBar, settingsIndex, topCount } from './components/TopBar';
 import { Viewer } from './components/Viewer';
+import { albumLabel, isAutoAlbum } from './lib/albums';
 import { api } from './lib/api';
 import { groupByDay, useHistogram, useMediaFeed, useMemories } from './lib/feed';
 import {
@@ -51,6 +52,12 @@ export function App(): React.JSX.Element {
   const isLocked = (state?.childMode ?? false) && !isAdmin;
   const albums = state?.albums ?? [];
   const favoritesAlbum = albums.find((a) => a.kind === 'favorites');
+  /**
+   * Les albums des tuiles de la barre du haut. Le nom parle de la *rangée*, pas
+   * de l'album « cette semaine » : celui-ci y figure comme les autres, et même
+   * en tête, puisque c'est ce qu'on veut ouvrir après avoir envoyé des photos.
+   * Seuls les favoris en sortent, ils ont déjà leur bouton fixe à gauche.
+   */
   const recentAlbums = useMemo(
     () => albums.filter((a) => a.kind !== 'favorites'),
     [albums],
@@ -280,10 +287,9 @@ export function App(): React.JSX.Element {
     return albums.filter((album) => {
       if (!filters.tags.every((tag) => album.tags.includes(tag))) return false;
       if (!needle) return true;
-      const name = album.kind === 'favorites' ? t.favorites : album.name;
-      return name.toLowerCase().includes(needle);
+      return albumLabel(album, t).toLowerCase().includes(needle);
     });
-  }, [albums, filters.tags, filters.text, view.kind, t.favorites]);
+  }, [albums, filters.tags, filters.text, view.kind, t]);
 
   const contentCount = isMediaView
     ? feed.items.length
@@ -1200,7 +1206,7 @@ export function App(): React.JSX.Element {
           }
           case 'actionY': {
             const album = visibleAlbums[nav.contentIndex];
-            if (album && album.kind !== 'favorites' && isAdmin) openView({ kind: 'editAlbum', id: album.id });
+            if (album && !isAutoAlbum(album) && isAdmin) openView({ kind: 'editAlbum', id: album.id });
             break;
           }
           default:
@@ -1421,7 +1427,7 @@ export function App(): React.JSX.Element {
     : view.kind === 'memories' ? t.memories
     : view.kind === 'newAlbum' ? t.newAlbum
     : view.kind === 'editAlbum' ? t.editAlbum
-    : currentAlbum ? (currentAlbum.kind === 'favorites' ? t.favorites : currentAlbum.name)
+    : currentAlbum ? albumLabel(currentAlbum, t)
     : null;
 
   // Le diaporama qui suit la chronologie affiche les photos chargées ; celui
@@ -1545,7 +1551,7 @@ export function App(): React.JSX.Element {
                   <IconX />
                 </button>
               )}
-              {currentAlbum && currentAlbum.kind !== 'favorites' && !isForm && (
+              {currentAlbum && !isAutoAlbum(currentAlbum) && !isForm && (
                 <button
                   className="tiny-btn"
                   onClick={() => {

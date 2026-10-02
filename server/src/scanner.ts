@@ -5,6 +5,7 @@ import exifr from 'exifr';
 import type { ScanStatus } from '../../shared/types.js';
 import { db } from './db.js';
 import { reverseGeocode } from './geocode.js';
+import { linkPendingAlbums } from './import.js';
 import { PHOTO_EXT, SKIP_DIRS, thumbPath, VIDEO_EXT } from './paths.js';
 import { makeThumbs, probeVideo, removeThumbs } from './thumbs.js';
 import { signatureFromThumb } from './vision.js';
@@ -376,8 +377,39 @@ async function buildPendingEmbeddings(): Promise<void> {
   }
 }
 
+/**
+ * Un scan a été demandé pendant qu'un autre tournait, et il reste à faire.
+ *
+ * Sans ce drapeau, une photo arrivée après que le parcours est passé devant son
+ * dossier restait invisible jusqu'au scan suivant — lequel pouvait n'arriver
+ * que des heures plus tard. C'est exactement ce qui se passe quand un téléphone
+ * envoie dix photos : la première lance le scan, les neuf autres tombent
+ * pendant qu'il tourne, et leur demande de scan était jetée en silence.
+ *
+ * Les demandes se fondent en une seule : dix photos envoyées d'affilée
+ * provoquent un second passage, pas dix.
+ */
+let rescanWanted = false;
+/** Un passage est en cours. Distinct de `status.running`, qui retombe entre deux. */
+let scanning = false;
+
 export async function scan(): Promise<void> {
-  if (status.running) return;
+  if (scanning) {
+    rescanWanted = true;
+    return;
+  }
+  scanning = true;
+  try {
+    do {
+      rescanWanted = false;
+      await scanOnce();
+    } while (rescanWanted);
+  } finally {
+    scanning = false;
+  }
+}
+
+async function scanOnce(): Promise<void> {
   status.running = true;
   status.phase = 'walking';
   status.found = 0;
@@ -414,6 +446,10 @@ export async function scan(): Promise<void> {
       }
     }
     notify();
+    // Avant les vignettes : les photos envoyées avec un nom d'album doivent y
+    // être dès qu'elles apparaissent, pas une fois tout le traitement d'images
+    // terminé — ce qui, sur une grosse bibliothèque, prend des minutes.
+    linkPendingAlbums();
     await buildPendingThumbs();
     await buildPendingSignatures();
     await buildPendingEmbeddings();

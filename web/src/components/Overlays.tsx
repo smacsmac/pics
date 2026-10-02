@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AlbumSort, Mood, Root } from '../../../shared/types';
 import { MOODS } from '../../../shared/types';
+import { albumLabel, isAutoAlbum } from '../lib/albums';
 import { api, ApiError } from '../lib/api';
 import { LANGS, monthNames } from '../lib/i18n';
 import { moodLabel } from './Panels';
@@ -617,7 +618,9 @@ export function AddToAlbumSheet(): React.JSX.Element | null {
     useStore();
   const [cursor, setCursor] = useState(0);
   const open = addToAlbumFor !== null && addToAlbumFor.length > 0;
-  const albums = state?.albums ?? [];
+  // « Cette semaine » se remplit tout seul : le proposer ici serait proposer une
+  // action que le serveur refuse. Les favoris restent, eux s'y rangent à la main.
+  const albums = (state?.albums ?? []).filter((a) => a.kind !== 'recent');
 
   const commit = useCallback(
     async (index: number) => {
@@ -635,10 +638,10 @@ export function AddToAlbumSheet(): React.JSX.Element | null {
       if (!album) return;
       await api.albumMedia(album.id, addToAlbumFor);
       await refresh();
-      toast(`${addToAlbumFor.length} → ${album.kind === 'favorites' ? t.favorites : album.name}`);
+      toast(`${addToAlbumFor.length} → ${albumLabel(album, t)}`);
       setAddToAlbumFor(null);
     },
-    [addToAlbumFor, albums, refresh, setAddToAlbumFor, setPendingAlbumMedia, t.favorites, toast, openView],
+    [addToAlbumFor, albums, refresh, setAddToAlbumFor, setPendingAlbumMedia, t, toast, openView],
   );
 
   useInput(
@@ -674,7 +677,7 @@ export function AddToAlbumSheet(): React.JSX.Element | null {
             >
               <span className="swatch" style={{ background: `hsl(${album.color} 88% 58%)` }} />
               {album.kind === 'favorites' && <IconHeart />}
-              <span className="n">{album.kind === 'favorites' ? t.favorites : album.name}</span>
+              <span className="n">{albumLabel(album, t)}</span>
               <span className="c">{album.count}</span>
             </button>
           ))}
@@ -1179,17 +1182,18 @@ export function AlbumContextMenu({
         <IconExpand /> {t.open}
       </button>
       <div className="menu-sep" />
-      {/* Les favoris sont déjà en tête d'office : rien à épingler. */}
-      {album?.kind !== 'favorites' && (
+      {/* Les albums automatiques sont déjà en tête d'office : rien à épingler. */}
+      {album && !isAutoAlbum(album) && (
         <button className="menu-item" onClick={onTogglePin}>
-          <IconPin /> {album?.pinned ? t.unpin : t.pin}
+          <IconPin /> {album.pinned ? t.unpin : t.pin}
         </button>
       )}
       <button className="menu-item" onClick={onEditTags}>
         <IconTag /> {t.editTags}
       </button>
-      {/* Les favoris sont un album à part : pas de fiche à modifier. */}
-      {album?.kind !== 'favorites' && (
+      {/* Un album automatique n'a pas de fiche à modifier : son nom vient des
+          traductions et son contenu d'une question posée à la bibliothèque. */}
+      {album && !isAutoAlbum(album) && (
         <button className="menu-item" onClick={onEdit}>
           <IconPencil /> {t.editAlbum}
         </button>
