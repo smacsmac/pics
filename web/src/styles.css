@@ -2036,21 +2036,40 @@ input { background: none; border: none; outline: none; }
    dernière n'existait pas, l'application la remplaçant par ses commandes à la
    manette, dont un invité ne dispose pas. */
 
+/* La page de l'invité défile elle-même.
+
+   `body` est en `overflow: hidden` pour toute l'application : la chronologie a
+   son propre conteneur de défilement, et la page ne bouge jamais. Sans la même
+   chose ici, un album d'une seule écranchée allait très bien — et tout ce qui
+   dépassait devenait inatteignable. Un album de soixante-dix photos n'en
+   montrait qu'une vingtaine, sans barre de défilement pour le dire. */
 .share-page {
-  min-height: 100vh;
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-3) transparent;
   display: flex;
   flex-direction: column;
-  padding: 16px var(--edge, 18px) 40px;
+  padding: 0 var(--edge, 18px) 40px;
   gap: 14px;
 }
 
+/* L'en-tête suit le défilement : sur un long album, « tout enregistrer » et le
+   choix de la langue doivent rester à portée sans remonter en haut. Le fond est
+   opaque, sinon les photos défilent au travers. */
 .share-head {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  flex: 0 0 auto;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   justify-content: space-between;
   gap: 12px;
-  padding-bottom: 12px;
+  padding: 16px 0 12px;
+  background: var(--bg);
   border-bottom: 1px solid var(--line);
 }
 
@@ -2071,6 +2090,7 @@ input { background: none; border: none; outline: none; }
 .share-langs { display: inline-flex; gap: 4px; }
 
 .share-bar {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2083,17 +2103,23 @@ input { background: none; border: none; outline: none; }
 .share-grid { margin-bottom: 0; }
 
 /* La grille prend la place restante, pour que le pied de page reste en bas
-   quand l'album ne contient que deux photos. */
-.share-page > .grid { flex: 1 1 auto; align-content: start; }
+   quand l'album ne contient que deux photos.
+
+   `1 0 auto` et non `1 1 auto` : avec flex-shrink à 1, un conteneur de hauteur
+   fixe comprime son enfant au lieu de le laisser déborder, et la grille se
+   serait tassée au lieu de défiler. */
+.share-page > .grid { flex: 1 0 auto; align-content: start; }
 
 .share-foot {
+  flex: 0 0 auto;
   padding-top: 14px;
   border-top: 1px solid var(--line);
   text-align: center;
 }
 
 .share-center {
-  min-height: 100vh;
+  height: 100%;
+  overflow-y: auto;
   display: grid;
   place-items: center;
   padding: 24px;
