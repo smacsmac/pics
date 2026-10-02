@@ -518,6 +518,17 @@ soient taguées, sans connexion, sans que rien ne quitte le PC.
    Redémarrez Photon ensuite. C'est le seul paquet supplémentaire de tout le
    projet, et il reste facultatif : Photon fonctionne entièrement sans.
 
+   Il n'est pas livré avec Photon parce qu'il pèse 296 Mo et amène trois
+   paquets dans son sillage — c'est beaucoup pour une fonction dont on peut
+   très bien se passer. Qui ne s'en sert pas ne le télécharge pas.
+
+   Cette commande ajoute une ligne à `package.json` : c'est normal, c'est la
+   trace de votre choix. Gardez-la, et si vous suivez le projet avec git,
+   validez-la — sinon elle se mettra en travers de chaque `git pull`.
+   N'utilisez pas `--no-save` pour l'éviter : le prochain `npm install`
+   supprimerait le paquet, jugé surnuméraire, et la recherche par description
+   s'arrêterait sans prévenir.
+
 2. **Le modèle**, par le bouton *Télécharger le modèle*. Environ 170 Mo, une
    seule fois. Il se range dans le dossier de données, à côté des vignettes.
 
@@ -742,11 +753,11 @@ cette page.
 ### npm bloque les scripts d'installation
 
 Depuis npm 11, l'installation d'un paquet n'exécute plus son script
-automatiquement. Vous verrez alors :
+automatiquement. C'est une protection, et c'est une bonne chose : aucun paquet
+de JavaScript pur n'a besoin de compiler quoi que ce soit, et un script
+d'installation est l'endroit rêvé pour glisser du code hostile.
 
-    npm warn install-scripts 4 packages had install scripts blocked
-
-Quatre paquets de Photon en ont besoin, parce qu'ils compilent ou téléchargent
+Quatre paquets de Photon font exception, parce qu'ils compilent ou téléchargent
 un binaire natif :
 
 | Paquet | Sans son script |
@@ -756,20 +767,42 @@ un binaire natif :
 | `ffmpeg-static` | pas de vignettes vidéo ni de conversion HEVC |
 | `onnxruntime-node` | pas de recherche par description |
 
-Pour les autoriser :
+**Ces quatre autorisations sont livrées avec le projet**, dans le champ
+`allowScripts` du `package.json`. Vous ne devriez donc rien avoir à approuver :
+`npm install` passe sans avertissement. Vous n'avez rien d'autre à autoriser
+pour Photon, et aucun paquet ajouté plus tard n'hérite de cette permission.
 
-    npm install-scripts approve better-sqlite3
-    npm install-scripts approve esbuild
-    npm install-scripts approve ffmpeg-static
-    npm install-scripts approve onnxruntime-node
+#### Si l'avertissement apparaît quand même
+
+    npm warn install-scripts 4 packages had install scripts blocked
+
+Alors les autorisations ne sont pas lues — presque toujours parce que le
+`package.json` local a été modifié, ou parce que npm est trop ancien
+(`npm --version` doit donner 11 ou plus). Pour débloquer sans attendre :
+
+    npm install-scripts approve --no-allow-scripts-pin better-sqlite3 esbuild ffmpeg-static onnxruntime-node
     npm install
 
 Le dernier `npm install` est nécessaire : approuver ne relance pas les scripts
 déjà sautés. Puis `npm run docteur` pour confirmer.
 
-Ce blocage est une protection, et c'est une bonne chose. Ces quatre-là sont
-l'exception justifiée : aucun paquet de JavaScript pur n'a besoin de compiler
-quoi que ce soit. Vous n'avez rien d'autre à approuver pour Photon.
+#### Pourquoi `--no-allow-scripts-pin`
+
+Sans cette option, npm écrit la version exacte du jour — `better-sqlite3@12.11.1`.
+L'autorisation ne vaut alors que pour cette version-là : à la première mise à
+jour, le paquet est de nouveau bloqué, et l'avertissement revient sans qu'on
+comprenne pourquoi. L'option écrit le nom seul, qui vaut pour toute version.
+
+C'est un vrai compromis, et il est assumé : on échange « je revois chaque
+nouvelle version » contre « je ne suis plus jamais bloqué ». Pour ces quatre
+paquets-là le choix est net — ils sont connus, ils ont toujours eu besoin de
+leur script, et une permission qui casse à chaque mise à jour pousse surtout à
+tout approuver en bloc avec `--all`, ce qui est bien pire.
+
+Dernier piège, si vous éditez le champ à la main : npm **refuse** les plages de
+versions. `"better-sqlite3@^12.4.1"` ne correspond à rien et bloque
+silencieusement. Seuls le nom seul (`"better-sqlite3"`) et les versions exactes
+(`"better-sqlite3@12.11.1"`, éventuellement jointes par `||`) sont acceptés.
 
 ## Si ça ne démarre pas
 
