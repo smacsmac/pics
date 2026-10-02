@@ -2027,3 +2027,178 @@ input { background: none; border: none; outline: none; }
   .stage-head { padding: 10px 10px 4px; }
   .panel { width: min(var(--panel-w), calc(100vw - 2 * var(--edge))); }
 }
+
+/* ------------------------------------------------------ album partagé
+
+   La page qu'un invité voit au bout d'un lien. Elle réutilise la grille, les
+   tuiles et le plein écran de l'application ; il ne reste qu'à habiller
+   l'en-tête, la porte du mot de passe et la barre du plein écran — cette
+   dernière n'existait pas, l'application la remplaçant par ses commandes à la
+   manette, dont un invité ne dispose pas. */
+
+.share-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 16px var(--edge, 18px) 40px;
+  gap: 14px;
+}
+
+.share-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.share-title h1 {
+  margin: 0 0 2px;
+  font-size: 1.5em;
+  font-weight: 600;
+  color: var(--accent-ink);
+}
+
+.share-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.share-langs { display: inline-flex; gap: 4px; }
+
+.share-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.share-grid { margin-bottom: 0; }
+
+/* La grille prend la place restante, pour que le pied de page reste en bas
+   quand l'album ne contient que deux photos. */
+.share-page > .grid { flex: 1 1 auto; align-content: start; }
+
+.share-foot {
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  text-align: center;
+}
+
+.share-center {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.share-gate {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(360px, 100%);
+  padding: 22px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  text-align: left;
+}
+
+.share-gate .mini { line-height: 1.5; }
+.share-problem { margin: 0; color: #ff9aad; font-size: 0.84em; }
+
+.share-working {
+  position: absolute;
+  bottom: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 7px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.72);
+  border: 1px solid var(--line);
+}
+
+/* Barre du plein écran de l'invité : les mêmes gestes, en boutons, puisqu'il
+   n'a ni manette ni raccourcis à connaître. */
+.viewer-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.82), transparent);
+}
+
+.viewer-bar button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  transition: border-color 0.14s;
+}
+
+.viewer-bar button:hover { border-color: var(--accent); }
+.viewer-bar button svg { width: 17px; height: 17px; }
+
+.viewer-meta {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 6px;
+}
+
+.viewer-meta .n {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .share-head { align-items: flex-start; }
+  .share-title h1 { font-size: 1.22em; }
+  .viewer-meta .mini { font-size: 0.72em; }
+}
+
+/* La feuille de partage porte un formulaire et une liste : elle a besoin de
+   plus de largeur que les autres, où un lien de 64 caractères et ses deux
+   boutons se chevauchaient. */
+.sheet.wide { width: min(680px, 100%); }
+
+.share-warn {
+  padding: 9px 11px;
+  border-radius: 9px;
+  background: color-mix(in srgb, #ffb86b 14%, var(--surface-2));
+  border: 1px solid color-mix(in srgb, #ffb86b 42%, var(--line));
+  color: #ffd2a1;
+  line-height: 1.45;
+}
+
+.share-row { align-items: flex-start; gap: 8px; }
+
+.share-row > .n {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.share-link-label { font-weight: 500; }
+.share-row .mini { line-height: 1.4; }

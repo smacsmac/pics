@@ -247,3 +247,14 @@ export const IconCopies = (p: P) => (
     <path d="M8.6 20.6h9a2 2 0 0 0 2-2v-9" {...S} />
   </Svg>
 );
+
+/** Partage : trois points reliés, le geste d'envoyer un lien à quelqu'un. */
+export const IconShare = (p: P) => (
+  <Svg {...p}>
+    <circle cx="17.5" cy="6" r="2.4" {...S} />
+    <circle cx="6.5" cy="12" r="2.4" {...S} />
+    <circle cx="17.5" cy="18" r="2.4" {...S} />
+    <path d="M15.4 7.2l-6.8 3.6" {...S} />
+    <path d="M8.6 13.2l6.8 3.6" {...S} />
+  </Svg>
+);

@@ -30,6 +30,39 @@ export interface MediaItem {
   rotation: number;
 }
 
+/**
+ * Ce qu'un invité apprend d'un album partagé. Avant le mot de passe, seul
+ * `needsPassword` est renseigné : le nom de l'album en dirait déjà trop à
+ * quelqu'un à qui le lien aurait été transmis.
+ */
+export interface SharedAlbum {
+  needsPassword: boolean;
+  open: boolean;
+  name?: string;
+  color?: number;
+  count?: number;
+  allowDownload?: boolean;
+  /** epoch ms, ou null si le lien n'expire pas. */
+  expiresAt?: number | null;
+  /** Langue de l'interface côté maison, comme point de départ pour l'invité. */
+  lang?: Lang;
+}
+
+/** Un lien de partage, vu depuis la maison. */
+export interface Share {
+  token: string;
+  albumId: number;
+  label: string;
+  hasPassword: boolean;
+  expiresAt: number | null;
+  allowDownload: boolean;
+  createdAt: number;
+  lastSeen: number | null;
+  visits: number;
+  /** L'adresse complète à transmettre, ou null si aucun nom public n'est réglé. */
+  url: string | null;
+}
+
 export interface Album {
   id: number;
   name: string;

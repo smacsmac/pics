@@ -8,14 +8,14 @@ import {
 } from './components/Albums';
 import {
   IconChild, IconCompact, IconDownload, IconGamepad, IconPencil, IconRows, IconSelect,
-  IconSlideshow, IconSort, IconSparkle, IconX, IconZoomIn, IconZoomOut,
+  IconShare, IconSlideshow, IconSort, IconSparkle, IconX, IconZoomIn, IconZoomOut,
 } from './components/Icons';
 import { MemoriesView, chapterName } from './components/Memories';
 import { Slideshow } from './components/Slideshow';
 import {
   AddToAlbumSheet, AdminSheet, AlbumContextMenu, AlbumTagsSheet, ContextMenu, FoldersSheet,
-  AlbumSortSheet, MonthPickerSheet, MoodPickerSheet, Osk, PlacePickerSheet, TagEditorSheet,
-  TagPickerSheet, Toasts, type AlbumMenuTarget, type MenuTarget,
+  AlbumSortSheet, MonthPickerSheet, MoodPickerSheet, Osk, PlacePickerSheet, ShareSheet,
+  TagEditorSheet, TagPickerSheet, Toasts, type AlbumMenuTarget, type MenuTarget,
 } from './components/Overlays';
 import { SearchPanel, SettingsPanel, displayMonth, moodLabel } from './components/Panels';
 import { UploadSheet } from './components/Upload';
@@ -1552,14 +1552,24 @@ export function App(): React.JSX.Element {
                 </button>
               )}
               {currentAlbum && !isAutoAlbum(currentAlbum) && !isForm && (
-                <button
-                  className="tiny-btn"
-                  onClick={() => {
-                    if (requireAdmin()) openView({ kind: 'editAlbum', id: currentAlbum.id });
-                  }}
-                >
-                  <IconPencil /> {t.editAlbum}
-                </button>
+                <>
+                  <button
+                    className="tiny-btn"
+                    onClick={() => {
+                      if (requireAdmin()) openView({ kind: 'editAlbum', id: currentAlbum.id });
+                    }}
+                  >
+                    <IconPencil /> {t.editAlbum}
+                  </button>
+                  <button
+                    className="tiny-btn"
+                    onClick={() => {
+                      if (requireAdmin()) setSheet({ kind: 'share', albumId: currentAlbum.id });
+                    }}
+                  >
+                    <IconShare /> {t.share}
+                  </button>
+                </>
               )}
 
               {(isMediaView || view.kind === 'albums') && (
@@ -1927,6 +1937,10 @@ export function App(): React.JSX.Element {
             if (requireAdmin()) setAlbumTagsFor(albumMenu.albumId);
             setAlbumMenu(null);
           }}
+          onShare={() => {
+            if (requireAdmin()) setSheet({ kind: 'share', albumId: albumMenu.albumId });
+            setAlbumMenu(null);
+          }}
           onTogglePin={() => {
             const album = albums.find((a) => a.id === albumMenu.albumId);
             if (album && requireAdmin()) {
@@ -1938,6 +1952,7 @@ export function App(): React.JSX.Element {
       )}
 
       <UploadSheet />
+      <ShareSheet />
       <MonthPickerSheet />
       <PlacePickerSheet />
       <TagPickerSheet />

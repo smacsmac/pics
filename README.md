@@ -303,6 +303,91 @@ dessous — un aperçu montre le rendu pendant que vous tapez. Comptez 30 à 50 
 pour garder assez de contraste sous les photos ; à 100 % l'image passe devant
 tout le reste visuellement et gêne la lecture de la grille.
 
+## Partager un album
+
+Pour qu'une personne loin de chez vous puisse voir un album et en repartir avec
+les fichiers. *Clic droit sur l'album → Partager*, ou le bouton **Partager**
+quand l'album est ouvert.
+
+Vous obtenez un lien. La personne l'ouvre dans son navigateur et voit cet album,
+et rien d'autre : pas de réglages, pas de chronologie, pas de vos autres albums.
+Elle peut regarder en grand, sélectionner, et enregistrer les photos sur son
+propre ordinateur. L'interface existe en français, en anglais et en coréen —
+elle choisit la sienne en haut de la page.
+
+Trois réglages par lien, et c'est tout : **un mot de passe** (facultatif), une
+**date d'expiration** (facultative), et l'autorisation d'**enregistrer les
+fichiers** (activée). Un lien se désactive à tout moment, et l'accès est coupé
+dans la seconde, même pour quelqu'un qui l'avait déjà ouvert.
+
+### Ce qu'il faut comprendre avant de s'en servir
+
+Jusqu'ici Photon reposait sur une hypothèse simple : si on atteint le port, on
+est chez soi. Tout le code en découle — il n'y a pas de compte, pas de
+connexion, et l'application est grande ouverte à qui est sur le Wi-Fi. C'était
+le bon choix pour une galerie de salon.
+
+Partager casse cette hypothèse, puisque le serveur devient joignable de
+l'extérieur. **Le lien de partage ne suffirait donc pas à vous protéger** : si on
+ouvre le port, qui trouve l'adresse voit toute la bibliothèque, lien ou pas.
+
+D'où le **garde par origine**, qui est la vraie pièce de sécurité de cette
+fonction :
+
+* **Depuis votre réseau**, rien ne change. L'application reste entière et
+  ouverte, comme elle l'a toujours été.
+* **Depuis l'extérieur**, seules les adresses de partage existent. Tout le
+  reste répond « introuvable » — y compris la page d'accueil. Quelqu'un qui
+  tombe sur votre adresse sans lien n'apprend même pas qu'il y a une galerie
+  derrière.
+
+C'est écrit comme une liste blanche et non comme une liste d'interdictions : une
+route ajoutée à Photon plus tard sera refusée aux visiteurs distants par défaut,
+plutôt qu'ouverte au monde en attendant qu'on y pense.
+
+### Ouvrir le chemin : le tunnel Cloudflare
+
+Votre box bloque tout ce qui vient d'Internet, et c'est très bien. Un tunnel
+crée une sortie sans rien ouvrir : c'est votre PC qui se connecte à Cloudflare,
+et Cloudflare qui vous envoie les visiteurs.
+
+1. Installez `cloudflared` (gratuit, chez Cloudflare).
+2. Créez un tunnel qui pointe vers `http://localhost:7777`.
+3. Cloudflare vous donne une adresse, par exemple `photos.exemple.com`.
+4. Collez-la dans *Partager → adresse publique*. Les liens prennent alors la
+   forme `https://photos.exemple.com/p/…`.
+
+Sans l'étape 4, les liens continuent de se créer mais ne marchent que sur votre
+réseau — et `npm run docteur` vous le dit plutôt que de vous laisser envoyer un
+lien mort.
+
+**Le compromis, dit franchement** : vos photos traversent les serveurs de
+Cloudflare. Elles ne s'y arrêtent pas, mais elles y passent, et c'est contraire
+au « rien ne quitte le PC » de tout le reste de Photon. C'est le prix d'un lien
+qui s'ouvre dans n'importe quel navigateur, sans rien installer chez la personne.
+Si ce prix vous gêne, un réseau privé (Tailscale) évite l'intermédiaire, au prix
+d'une installation chez elle.
+
+### Deux pièges
+
+**Tailscale compte comme « chez vous ».** Un appareil sur votre réseau Tailscale
+est traité comme un appareil du salon, et voit donc *toute* la bibliothèque.
+C'est voulu — on n'y entre que sur invitation — mais ça surprend : n'invitez pas
+quelqu'un sur Tailscale juste pour lui montrer un album, donnez-lui un lien.
+
+**Un lien transmis reste un lien valable.** Il n'identifie personne. S'il est
+retransféré, il fonctionne pour le suivant. D'où le mot de passe et la date
+d'expiration, et la possibilité de désactiver. Pour un album sensible, mettez
+les deux.
+
+### Ce que l'invité ne reçoit pas
+
+Même dans l'album partagé, on retire ce qui ne le regarde pas : les favoris de la
+maison, et les tags — qui peuvent venir d'un *autre* album que celui partagé. Les
+photos masquées n'y figurent jamais. En revanche la date et le lieu restent
+visibles, comme dans l'application : c'est voulu, mais sachez-le si l'album
+contient des photos prises chez vous.
+
 ## Musique
 
 Deux étapes, et c'est la seconde qu'on oublie :
@@ -744,6 +829,7 @@ Ajoutez ce dossier dans les réglages pour voir l'application remplie.
 
     npm run test:vision        signatures, ambiances, empreintes, ressemblances
     npm run test:upload-album  album à l'envoi, et « cette semaine »
+    npm run test:share         partage d'album, et tentatives d'évasion
     npm run test:clip-search   rangement et classement des vecteurs
     npm run test:clip -- clip-fixtures        tokenizer, face à OpenAI
     npm run test:clip-image -- clip-fixtures  images, face à PyTorch
@@ -763,6 +849,14 @@ de couvrir le point délicat, à savoir qu'un envoi ne crée aucune ligne dans l
 bibliothèque et que l'album se remplit plus tard, au scan. Il vérifie aussi, en
 comparant l'empreinte de chaque fichier avant et après, qu'aucune photo n'a
 disparu, bougé ni changé.
+
+`test:share` est le plus important des trois. Il simule un visiteur distant
+exactement comme le fait un tunnel Cloudflare — requête venue de `127.0.0.1`,
+avec les en-têtes du proxy — et essaie de s'échapper de l'album partagé par tous
+les chemins imaginables : les routes normales, les numéros de photos voisins, un
+jeton deviné, la session d'un autre lien, un lien expiré, un lien révoqué. Il
+ouvre aussi vraiment l'archive téléchargée pour vérifier que les fichiers sont
+identiques aux originaux, octet pour octet.
 
 ### Développement
 

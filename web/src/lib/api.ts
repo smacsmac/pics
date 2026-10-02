@@ -1,6 +1,6 @@
 import type {
   Album, AppState, Chapter, ClipState, DuplicateGroup, HistogramBucket, MediaItem, MediaPage,
-  MediaQuery, OnThisDay, PlaybackInfo, Root, Settings, UploadResult,
+  MediaQuery, OnThisDay, PlaybackInfo, Root, Settings, Share, UploadResult,
 } from '../../../shared/types';
 
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
@@ -155,6 +155,23 @@ export const api = {
   },
 
   deleteAlbum: (id: number) => request<{ deleted: number }>(`/api/albums/${id}`, { method: 'DELETE' }),
+
+  // ------------------------------------------------------ liens de partage
+
+  shareConfig: () => request<{ publicHostname: string }>('/api/share-config'),
+  setShareConfig: (publicHostname: string) =>
+    request<{ publicHostname: string }>('/api/share-config', {
+      method: 'POST',
+      body: JSON.stringify({ publicHostname }),
+    }),
+
+  shares: (albumId: number) => request<Share[]>(`/api/albums/${albumId}/shares`),
+  createShare: (
+    albumId: number,
+    body: { label?: string; password?: string; days?: number; allowDownload?: boolean },
+  ) => request<Share>(`/api/albums/${albumId}/shares`, { method: 'POST', body: JSON.stringify(body) }),
+  revokeShare: (token: string) =>
+    request<{ revoked: string }>(`/api/shares/${token}`, { method: 'DELETE' }),
 
   albumMedia: (albumId: number, ids: number[], remove = false) =>
     request<{ changed: number; albums: Album[] }>(`/api/albums/${albumId}/media`, {

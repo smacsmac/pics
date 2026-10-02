@@ -2,7 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import type { Album, AlbumSort, AppState, Mood, Root, UploadResult } from '../../shared/types.js';
+import type {
+  Album, AlbumSort, AppState, Mood, Root, Share, UploadResult,
+} from '../../shared/types.js';
 import { MOODS } from '../../shared/types.js';
 import {
   albumForUpload, drainInbox, ensureTempDir, fileIntoLibrary, importRoot, isKnownNameSize,
@@ -19,7 +21,10 @@ import {
   chapters, dateBounds, distinctPlaces, duplicateGroups, getMedia, getMediaByIds, histogram,
   onThisDay, queryMedia, randomFavorite, type Filters,
 } from './media-query.js';
+import { publicHostname, setPublicHostname, shareLink } from './origin.js';
 import { PORT, thumbPath } from './paths.js';
+import { attachment, sendFile } from './serve-file.js';
+import { createShare, listShares, revokeShare, type ShareRow } from './share.js';
 import { backfillPlaces, onScanProgress, scan, status as scanStatus } from './scanner.js';
 import { getSettings, saveSettings } from './settings.js';
 import { nearestThumbSize, removeThumbs } from './thumbs.js';
@@ -32,16 +37,6 @@ import { progress as clipProgress, rank as rankClip } from './clip/search.js';
 
 /** Plafond d'un téléchargement groupé : au-delà, mieux vaut copier le dossier. */
 const DOWNLOAD_MAX = 2000;
-
-const MIME: Record<string, string> = {
-  '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.jpe': 'image/jpeg', '.png': 'image/png',
-  '.gif': 'image/gif', '.webp': 'image/webp', '.bmp': 'image/bmp', '.tif': 'image/tiff',
-  '.tiff': 'image/tiff', '.heic': 'image/heic', '.heif': 'image/heif', '.avif': 'image/avif',
-  '.mp4': 'video/mp4', '.mov': 'video/quicktime', '.m4v': 'video/x-m4v', '.webm': 'video/webm',
-  '.mkv': 'video/x-matroska', '.avi': 'video/x-msvideo', '.mpg': 'video/mpeg',
-  '.mpeg': 'video/mpeg', '.3gp': 'video/3gpp', '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4',
-  '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.flac': 'audio/flac',
-};
 
 function parseList(value: unknown): string[] | undefined {
   if (typeof value !== 'string' || value.trim() === '') return undefined;
@@ -247,48 +242,6 @@ function rootRows(): Root[] {
     Omit<Root, 'exists'>
   >;
   return rows.map((r) => ({ ...r, exists: fs.existsSync(r.path) }));
-}
-
-/**
- * En-tête `content-disposition` pour un nom de fichier quelconque. Les accents
- * (« Été 2019.jpg ») ne passent pas en ASCII : on donne une version dépouillée
- * pour les vieux navigateurs, et le vrai nom encodé en UTF-8 à côté.
- */
-function attachment(filename: string): string {
-  const plain = filename.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
-  return `attachment; filename="${plain}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
-}
-
-/** Envoie un fichier avec support des requêtes Range (indispensable pour les vidéos). */
-async function sendFile(req: FastifyRequest, reply: FastifyReply, file: string): Promise<void> {
-  let stat: fs.Stats;
-  try {
-    stat = await fs.promises.stat(file);
-  } catch {
-    return reply.code(404).send({ error: 'not_found' });
-  }
-
-  const type = MIME[path.extname(file).toLowerCase()] ?? 'application/octet-stream';
-  const range = req.headers.range;
-  void reply.header('accept-ranges', 'bytes').header('content-type', type);
-
-  if (range) {
-    const match = /bytes=(\d*)-(\d*)/.exec(range);
-    if (match) {
-      const start = match[1] ? Number(match[1]) : 0;
-      const end = match[2] ? Math.min(Number(match[2]), stat.size - 1) : stat.size - 1;
-      if (start >= stat.size || start > end) {
-        return reply.code(416).header('content-range', `bytes */${stat.size}`).send();
-      }
-      return reply
-        .code(206)
-        .header('content-range', `bytes ${start}-${end}/${stat.size}`)
-        .header('content-length', end - start + 1)
-        .send(fs.createReadStream(file, { start, end }));
-    }
-  }
-
-  return reply.header('content-length', stat.size).send(fs.createReadStream(file));
 }
 
 /** Appelé quand la liste des dossiers change, pour resynchroniser la surveillance. */
@@ -729,9 +682,68 @@ export function registerRoutes(app: FastifyInstance, onRootsChanged: () => void 
     const id = Number((req.params as { id: string }).id);
     if (id === FAVORITES_ID) return reply.code(400).send({ error: 'cannot_delete_favorites' });
     if (id === RECENT_ID) return reply.code(400).send({ error: 'cannot_delete_recent' });
+    // Les liens de partage de cet album tombent avec lui : la contrainte de clé
+    // étrangère s'en charge (ON DELETE CASCADE, avec foreign_keys = ON).
     db.prepare(`DELETE FROM albums WHERE id = ?`).run(id);
     pruneOrphanTags();
     return { deleted: id };
+  });
+
+  // -------------------------------------------------------- liens de partage
+
+  /** Habille un lien de l'adresse complète à transmettre. */
+  const withUrl = (share: ShareRow): Share => ({ ...share, url: shareLink(share.token) });
+
+  app.get('/api/share-config', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return;
+    return { publicHostname: publicHostname() };
+  });
+
+  app.post('/api/share-config', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return;
+    setPublicHostname(String((req.body as { publicHostname?: string }).publicHostname ?? ''));
+    return { publicHostname: publicHostname() };
+  });
+
+  app.get('/api/albums/:id/shares', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return;
+    const id = Number((req.params as { id: string }).id);
+    return listShares(id).map(withUrl);
+  });
+
+  app.post('/api/albums/:id/shares', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return;
+    const id = Number((req.params as { id: string }).id);
+
+    const album = db.prepare(`SELECT id, kind FROM albums WHERE id = ?`).get(id) as
+      | { id: number; kind: string }
+      | undefined;
+    if (!album) return reply.code(404).send({ error: 'not_found' });
+    // « Cette semaine » change de contenu tout seul : un lien dessus montrerait
+    // demain des photos qu'on n'avait pas l'intention de partager aujourd'hui.
+    if (album.kind === 'recent') return reply.code(400).send({ error: 'album_is_automatic' });
+
+    const body = req.body as {
+      label?: string; password?: string; days?: number; allowDownload?: boolean;
+    };
+    const password = String(body.password ?? '').trim();
+
+    return withUrl(
+      createShare({
+        albumId: id,
+        label: body.label,
+        password: password === '' ? undefined : password,
+        days: Number(body.days ?? 0),
+        allowDownload: body.allowDownload !== false,
+      }),
+    );
+  });
+
+  app.delete('/api/shares/:token', async (req, reply) => {
+    if (!requireAdmin(req, reply)) return;
+    const token = String((req.params as { token: string }).token);
+    if (!revokeShare(token)) return reply.code(404).send({ error: 'not_found' });
+    return { revoked: token };
   });
 
   app.post('/api/albums/:id/media', async (req, reply) => {

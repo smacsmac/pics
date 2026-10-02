@@ -86,7 +86,8 @@ export type Sheet =
   | { kind: 'tagPicker' }
   | { kind: 'moodPicker' }
   | { kind: 'albumSort' }
-  | { kind: 'upload' };
+  | { kind: 'upload' }
+  | { kind: 'share'; albumId: number };
 
 export interface OskRequest {
   label: string;

@@ -189,6 +189,74 @@ if (!fs.existsSync(path.join(racine, 'node_modules'))) {
   }
 }
 
+// ----------------------------------------------------- partage d album
+
+{
+  // Lecture directe de la base, en lecture seule : le docteur doit pouvoir
+  // repondre meme si Photon ne tourne pas.
+  if (taille(DB_PATH) < 0) {
+    dire('attention', 'Partage d album', 'aucune base - rien a dire encore');
+  } else {
+    try {
+      const Database = (await import('better-sqlite3')).default;
+      const base = new Database(DB_PATH, { readonly: true, fileMustExist: true });
+
+      const table = base
+        .prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'shares'`)
+        .get();
+      if (!table) {
+        dire('ok', 'Partage d album', 'aucun lien - jamais utilise');
+      } else {
+        const maintenant = Date.now();
+        const vivants = (base
+          .prepare(
+            `SELECT COUNT(*) AS n FROM shares
+              WHERE expires_at IS NULL OR expires_at > ?`,
+          )
+          .get(maintenant) as { n: number }).n;
+        const perimes = (base
+          .prepare(`SELECT COUNT(*) AS n FROM shares WHERE expires_at IS NOT NULL AND expires_at <= ?`)
+          .get(maintenant) as { n: number }).n;
+        const sansMotDePasse = (base
+          .prepare(
+            `SELECT COUNT(*) AS n FROM shares
+              WHERE salt IS NULL AND (expires_at IS NULL OR expires_at > ?)`,
+          )
+          .get(maintenant) as { n: number }).n;
+
+        const ligne = base
+          .prepare(`SELECT value FROM settings WHERE key = 'publicHostname'`)
+          .get() as { value: string } | undefined;
+        let hote = '';
+        try {
+          hote = ligne ? (JSON.parse(ligne.value) as string) : '';
+        } catch {
+          hote = '';
+        }
+        base.close();
+
+        if (vivants === 0) {
+          dire('ok', 'Partage d album', 'aucun lien en service');
+        } else if (hote === '') {
+          // Le cas le plus deroutant : des liens existent, mais ils ne menent
+          // nulle part depuis l'exterieur. On ne s'en apercoit qu'en demandant
+          // a la personne si ca marche.
+          dire('attention', 'Partage d album', `${vivants} lien(s), aucune adresse publique`,
+            'Ces liens ne marchent que sur votre reseau local.\n' +
+            '       Reglez l\'adresse publique dans Albums > Partager.');
+        } else {
+          const detail = `${vivants} lien(s) vers ${hote}` +
+            (sansMotDePasse > 0 ? `, dont ${sansMotDePasse} sans mot de passe` : '') +
+            (perimes > 0 ? `, ${perimes} perime(s)` : '');
+          dire('ok', 'Partage d album', detail);
+        }
+      }
+    } catch (err) {
+      dire('attention', 'Partage d album', abrege(err));
+    }
+  }
+}
+
 // ------------------------------------------------------------------ port
 
 {

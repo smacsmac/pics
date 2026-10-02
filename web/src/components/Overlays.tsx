@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { AlbumSort, Mood, Root } from '../../../shared/types';
+import type { AlbumSort, Mood, Root, Share } from '../../../shared/types';
 import { MOODS } from '../../../shared/types';
 import { albumLabel, isAutoAlbum } from '../lib/albums';
 import { api, ApiError } from '../lib/api';
@@ -10,7 +10,7 @@ import { HUES } from '../lib/panels';
 import { useStore } from '../lib/store';
 import {
   IconCheck, IconDownload, IconExpand, IconHeart, IconHide, IconPalette, IconPencil, IconPin,
-  IconPlus, IconRotate, IconSelect, IconSparkle, IconTag, IconTrash, IconX,
+  IconPlus, IconRotate, IconSelect, IconShare, IconSparkle, IconTag, IconTrash, IconX,
 } from './Icons';
 
 /** Enferme le curseur d'une liste dans ses bornes, avec bouclage. */
@@ -1150,6 +1150,7 @@ export function AlbumContextMenu({
   onEdit,
   onEditTags,
   onTogglePin,
+  onShare,
 }: {
   target: AlbumMenuTarget;
   onClose: () => void;
@@ -1157,6 +1158,7 @@ export function AlbumContextMenu({
   onEdit: () => void;
   onEditTags: () => void;
   onTogglePin: () => void;
+  onShare: () => void;
 }): React.JSX.Element {
   const { t, state } = useStore();
   const album = state?.albums.find((a) => a.id === target.albumId);
@@ -1196,6 +1198,13 @@ export function AlbumContextMenu({
       {album && !isAutoAlbum(album) && (
         <button className="menu-item" onClick={onEdit}>
           <IconPencil /> {t.editAlbum}
+        </button>
+      )}
+      {/* Partager « cette semaine » montrerait demain des photos qu'on n'avait
+          pas l'intention d'envoyer : le serveur le refuse, on ne le propose pas. */}
+      {album && !isAutoAlbum(album) && (
+        <button className="menu-item" onClick={onShare}>
+          <IconShare /> {t.share}
         </button>
       )}
     </div>
@@ -1466,4 +1475,252 @@ export function Toasts(): React.JSX.Element {
       ))}
     </div>
   );
+}
+
+/**
+ * Partager un album : créer un lien, voir ceux en service, en désactiver un.
+ *
+ * Le lien seul ne suffit pas, et l'écran le dit : sans adresse publique réglée,
+ * il ne marche que sur le réseau de la maison. C'était le piège le plus
+ * probable — copier fièrement un `https://` qui ne mène nulle part chez la
+ * personne à qui on l'envoie.
+ */
+export function ShareSheet(): React.JSX.Element | null {
+  const { sheet, setSheet, state, t, toast, setOsk } = useStore();
+  const open = sheet?.kind === 'share';
+  const albumId = sheet?.kind === 'share' ? sheet.albumId : null;
+  const album = state?.albums.find((a) => a.id === albumId) ?? null;
+
+  const [links, setLinks] = useState<Share[]>([]);
+  const [host, setHost] = useState('');
+  const [label, setLabel] = useState('');
+  const [password, setPassword] = useState('');
+  const [days, setDays] = useState(0);
+  const [allowDownload, setAllowDownload] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  const reload = useCallback(async () => {
+    if (albumId === null) return;
+    try {
+      const [got, config] = await Promise.all([api.shares(albumId), api.shareConfig()]);
+      setLinks(got);
+      setHost(config.publicHostname);
+    } catch {
+      setLinks([]);
+    }
+  }, [albumId]);
+
+  useEffect(() => {
+    if (!open) return;
+    setLabel('');
+    setPassword('');
+    setDays(0);
+    setAllowDownload(true);
+    void reload();
+  }, [open, reload]);
+
+  const create = useCallback(async () => {
+    if (albumId === null || busy) return;
+    setBusy(true);
+    try {
+      const made = await api.createShare(albumId, {
+        label, password: password.trim() || undefined, days, allowDownload,
+      });
+      setLabel('');
+      setPassword('');
+      await reload();
+      // Le lien atterrit dans le presse-papiers : c'est le geste suivant dans
+      // tous les cas, et un jeton de 64 caractères ne se recopie pas à la main.
+      if (made.url) await copy(made.url, t.shareCopied, toast);
+    } finally {
+      setBusy(false);
+    }
+  }, [albumId, busy, label, password, days, allowDownload, reload, t.shareCopied, toast]);
+
+  useInput(
+    useCallback(
+      (action) => {
+        if (!open) return false;
+        if (action === 'back') setSheet(null);
+        return true;
+      },
+      [open, setSheet],
+    ),
+    open,
+  );
+
+  if (!open || album === null) return null;
+
+  const expiryChoices = [0, 7, 30, 90];
+
+  return (
+    <div className="overlay" onClick={() => setSheet(null)}>
+      <div className="sheet wide" onClick={(e) => e.stopPropagation()}>
+        <div className="sheet-title">{t.shareAlbumTitle} · {album.name}</div>
+        <div className="mini">{t.shareHint}</div>
+
+        {host === '' && <div className="share-warn mini">{t.shareNeedsHost}</div>}
+
+        <div className="field">
+          <span className="lab">{t.shareLabel}</span>
+          <input
+            className="text-input"
+            value={label}
+            placeholder={t.shareLabel}
+            maxLength={80}
+            onChange={(e) => setLabel(e.target.value)}
+          />
+        </div>
+
+        <div className="field">
+          <span className="lab">{t.sharePasswordOptional}</span>
+          <input
+            className="text-input"
+            value={password}
+            placeholder={t.sharePasswordOptional}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </div>
+
+        <div className="field">
+          <span className="lab">{t.shareExpiry}</span>
+          <div className="chip-row">
+            {expiryChoices.map((n) => (
+              <button
+                key={n}
+                className={`chip${days === n ? ' on' : ''}`}
+                onClick={() => setDays(n)}
+              >
+                {n === 0 ? t.shareNever : t.shareDays(n)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <button
+          className="panel-row"
+          style={{ textAlign: 'left' }}
+          onClick={() => setAllowDownload((on) => !on)}
+        >
+          <div className="row-line">
+            <IconDownload />
+            <span className="lab">{t.shareAllowDownload}</span>
+            <span className={`toggle${allowDownload ? ' on' : ''}`}>
+              <span className="knob" />
+            </span>
+          </div>
+        </button>
+
+        <div className="form-actions">
+          <button className="btn" onClick={() => setSheet(null)}>{t.cancel}</button>
+          <button className="btn primary" onClick={() => void create()} disabled={busy}>
+            <IconShare /> {t.shareNewLink}
+          </button>
+        </div>
+
+        <div className="field">
+          <span className="lab">{t.shareLinks}</span>
+          <div className="option-list">
+            {links.length === 0 && <span className="mini">{t.shareNoLinks}</span>}
+            {links.map((link) => (
+              <div key={link.token} className="option share-row">
+                <span className="n">
+                  <span className="share-link-label">{link.label || '—'}</span>
+                  <span className="mini">
+                    {link.hasPassword ? `🔒 ${t.password}` : t.shareNever}
+                    {' · '}
+                    {link.expiresAt === null
+                      ? t.shareNever
+                      : link.expiresAt < Date.now()
+                        ? t.shareExpired
+                        : t.shareUntil(new Date(link.expiresAt).toLocaleDateString())}
+                    {' · '}
+                    {t.shareVisits(link.visits)}
+                    {!link.allowDownload && ` · ${t.shareNoDownloadShort}`}
+                  </span>
+                </span>
+                <button
+                  className="tiny-btn"
+                  disabled={link.url === null}
+                  onClick={() => void copy(link.url ?? '', t.shareCopied, toast)}
+                >
+                  {t.shareCopy}
+                </button>
+                <button
+                  className="tiny-btn danger"
+                  onClick={() => void api.revokeShare(link.token).then(reload)}
+                >
+                  <IconTrash /> {t.shareRevoke}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="field">
+          <span className="lab">{t.sharePublicHost}</span>
+          <input
+            className="text-input"
+            value={host}
+            placeholder="photos.exemple.com"
+            onChange={(e) => setHost(e.target.value)}
+            onBlur={() => void api.setShareConfig(host).then((c) => {
+              setHost(c.publicHostname);
+              void reload();
+            })}
+          />
+          <span className="mini">{t.sharePublicHostHint}</span>
+          <button
+            className="tiny-btn"
+            onClick={() =>
+              setOsk({
+                label: t.sharePublicHost,
+                value: host,
+                onCommit: (value) => void api.setShareConfig(value).then((c) => {
+                  setHost(c.publicHostname);
+                  void reload();
+                }),
+              })
+            }
+          >
+            <IconPencil /> {t.sharePublicHost}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Copie dans le presse-papiers, avec une solution de repli.
+ *
+ * `navigator.clipboard` n'existe qu'en HTTPS ou sur `localhost` : depuis un
+ * autre appareil du réseau, en `http://192.168…`, il est absent. Sans le repli,
+ * le bouton « Copier » ne faisait rien, et c'est précisément depuis le canapé
+ * qu'on veut envoyer un lien.
+ */
+async function copy(text: string, done: string, toast: (s: string) => void): Promise<void> {
+  if (text === '') return;
+  try {
+    await navigator.clipboard.writeText(text);
+    toast(done);
+    return;
+  } catch {
+    /* pas de presse-papiers : on passe au repli */
+  }
+  try {
+    const field = document.createElement('textarea');
+    field.value = text;
+    field.setAttribute('readonly', '');
+    field.style.position = 'fixed';
+    field.style.opacity = '0';
+    document.body.appendChild(field);
+    field.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(field);
+    toast(ok ? done : text);
+  } catch {
+    // Dernier recours : on affiche le lien, à copier à la main.
+    toast(text);
+  }
 }

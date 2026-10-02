@@ -10,12 +10,35 @@ import Fastify from 'fastify';
 import { db } from './db.js';
 import { preloadGeocoder } from './geocode.js';
 import { drainInbox, ensureTempDir } from './import.js';
+import { isDistant } from './origin.js';
 import { ensureDirs, HOST, PORT } from './paths.js';
 import { registerRoutes } from './routes.js';
 import { restartWatching, scan } from './scanner.js';
+import { registerShareRoutes } from './share-routes.js';
+import { pruneShares } from './share.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const WEB_DIST = path.resolve(here, '../../web/dist');
+
+/**
+ * Les seules adresses qu'un visiteur distant peut atteindre.
+ *
+ * Écrit comme une liste blanche et non comme une liste de refus : une route
+ * ajoutée au projet plus tard sera refusée par défaut aux visiteurs distants.
+ * L'inverse — refuser une liste connue — laisserait chaque nouvelle route
+ * ouverte au monde en attendant qu'on y pense.
+ */
+const DISTANT_OK = [
+  /^\/p\/[0-9a-f]{64}$/, // la page d'un lien de partage
+  /^\/api\/share\/[0-9a-f]{64}(\/.*)?$/, // ses données
+  /^\/assets\/[A-Za-z0-9._-]+$/, // le JS et le CSS de l'interface
+  /^\/favicon\.[a-z0-9]+$/,
+];
+
+function distantAllowed(url: string): boolean {
+  const pathname = url.split('?')[0].replace(/\/+$/, '') || '/';
+  return DISTANT_OK.some((allowed) => allowed.test(pathname));
+}
 
 /**
  * Ouvre le navigateur au démarrage sur Windows et macOS. Sous Linux les
@@ -60,7 +83,30 @@ async function main(): Promise<void> {
     // il ne passe jamais entièrement par la mémoire.
     limits: { fileSize: 4 * 1024 * 1024 * 1024, files: 64, fields: 8 },
   });
+  /**
+   * Le garde par origine. Première chose exécutée pour chaque requête, avant
+   * les routes et avant les fichiers statiques.
+   *
+   * Depuis le réseau local, rien ne change : l'application reste grande ouverte,
+   * comme elle l'a toujours été. Depuis l'extérieur, seules les routes de
+   * partage existent — tout le reste répond 404, y compris la page d'accueil.
+   *
+   * 404 et non 403, à dessein : un visiteur qui tombe sur l'adresse du tunnel
+   * sans lien ne doit même pas apprendre qu'il y a une galerie derrière.
+   *
+   * Ce garde est la seule raison pour laquelle on peut exposer Photon. Sans lui,
+   * ouvrir le port donnerait la bibliothèque entière à qui la trouve : `isAdmin`
+   * répond « oui » par défaut, parce que le projet est né en supposant que seul
+   * le salon peut atteindre le port.
+   */
+  app.addHook('onRequest', async (req, reply) => {
+    if (!isDistant(req)) return;
+    if (distantAllowed(req.url)) return;
+    return reply.code(404).type('text/plain; charset=utf-8').send('Not found\n');
+  });
+
   registerRoutes(app, () => restartWatching(sweep));
+  registerShareRoutes(app);
 
   if (fs.existsSync(WEB_DIST)) {
     await app.register(fastifyStatic, { root: WEB_DIST, index: ['index.html'] });
@@ -102,6 +148,9 @@ async function main(): Promise<void> {
   }
 
   ensureTempDir();
+  // Les liens expirés depuis plus d'un mois s'effacent : la liste de partage
+  // doit rester lisible sans qu'on ait à faire le ménage à la main.
+  pruneShares();
 
   // Un fichier déposé pendant que le serveur était éteint doit être rangé au
   // démarrage, pas seulement à la prochaine modification du dossier.
